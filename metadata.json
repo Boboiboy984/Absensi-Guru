@@ -1,0 +1,6 @@
+{
+  "name": "Aplikasi Guru - SMP IT Annur Abhari",
+  "description": "Aplikasi Guru SMP IT Annur Abhari untuk manajemen data guru, absensi QR harian, rekapitulasi kehadiran, dan arsip file pembelajaran.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
