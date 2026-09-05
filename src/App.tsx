@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { 
   Home, Users, QrCode, FileText, Download, LogOut, Plus, Trash2, Printer, 
   FolderOpen, Edit, Search, Phone, Mail, X, Camera, RefreshCw, CheckCircle, 
-  AlertTriangle, AlertCircle, Image as ImageIcon, Eye, RotateCw
+  AlertTriangle, AlertCircle, Image as ImageIcon, Eye, RotateCw, Smartphone,
+  ExternalLink, Copy, Share2
 } from 'lucide-react';
+import TeacherMobilePortal from './components/TeacherMobilePortal';
 
 declare const __initial_auth_token: string | undefined;
 
@@ -35,6 +38,41 @@ export default function AplikasiGuru() {
   const [passwordInput, setPasswordInput] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+
+  // Mode Tampilan: 'admin' atau 'presensi_guru' (Portal Scan QR Guru)
+  const [viewMode, setViewMode] = useState<'admin' | 'presensi_guru'>(() => {
+    if (typeof window !== 'undefined') {
+      const search = (window.location.search || '').toLowerCase();
+      const hash = (window.location.hash || '').toLowerCase();
+      const href = (window.location.href || '').toLowerCase();
+      
+      // Jika URL mengindikasikan presensi / scan / guru / absen
+      if (
+        search.includes('presensi') || search.includes('scan') || search.includes('guru') || search.includes('absen') ||
+        hash.includes('presensi') || hash.includes('scan') || hash.includes('guru') || hash.includes('absen') ||
+        href.includes('presensi') || href.includes('scan')
+      ) {
+        return 'presensi_guru';
+      }
+
+      // Deteksi HP / Smartphone / Tablet: Jika diakses guru lewat HP, otomatis tampilkan formulir absen!
+      const isMobile = /android|iphone|ipad|ipod|mobile|phone|blackberry|iemobile|opera mini/i.test(
+        navigator.userAgent || ''
+      );
+      if (isMobile) {
+        return 'presensi_guru';
+      }
+    }
+    return 'admin';
+  });
+
+  // Pilihan Sumber URL QR Code
+  const [urlMode, setUrlMode] = useState<'cloud' | 'current' | 'custom'>('cloud');
+  const [customUrlInput, setCustomUrlInput] = useState<string>('');
+  // Tautan URL Resmi untuk Scan Presensi Guru
+  const [portalUrl, setPortalUrl] = useState<string>('https://ais-pre-w76cmovxwpxtxnvobsuz3g-576001118961.asia-east1.run.app/?presensi=guru');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [isCopied, setIsCopied] = useState(false);
 
   const [teachers, setTeachers] = useState<any[]>(() => {
     try {
@@ -400,26 +438,75 @@ export default function AplikasiGuru() {
   }, [activeTab]);
 
   // ==========================================
+  // GENERASI QR CODE REAL DENGAN TAUTAN URL HP GURU
+  // ==========================================
+  const OFFICIAL_CLOUD_URL = 'https://ais-pre-w76cmovxwpxtxnvobsuz3g-576001118961.asia-east1.run.app/?presensi=guru';
+
+  useEffect(() => {
+    let target = OFFICIAL_CLOUD_URL;
+
+    if (urlMode === 'current' && typeof window !== 'undefined' && window.location) {
+      const origin = window.location.origin;
+      const pathname = window.location.pathname;
+      target = `${origin}${pathname}?presensi=guru`;
+    } else if (urlMode === 'custom' && customUrlInput.trim()) {
+      let custom = customUrlInput.trim();
+      if (!custom.startsWith('http://') && !custom.startsWith('https://')) {
+        custom = 'https://' + custom;
+      }
+      target = custom.includes('?') ? `${custom}&presensi=guru` : `${custom}/?presensi=guru`;
+    } else {
+      target = OFFICIAL_CLOUD_URL;
+    }
+
+    setPortalUrl(target);
+
+    // Generate high-resolution QR code locally with strong contrast
+    QRCode.toDataURL(target, {
+      width: 650,
+      margin: 2,
+      color: {
+        dark: '#0f172a', // Kontras tinggi agar mudah dibaca oleh semua sensor kamera smartphone
+        light: '#ffffff'
+      },
+      errorCorrectionLevel: 'H'
+    })
+      .then(dataUri => {
+        setQrCodeDataUrl(dataUri);
+      })
+      .catch(err => {
+        console.warn("QRCode local generation failed, using fallback:", err);
+        setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(target)}`);
+      });
+  }, [urlMode, customUrlInput]);
+
+  const handleCopyPortalLink = () => {
+    if (portalUrl && navigator.clipboard) {
+      navigator.clipboard.writeText(portalUrl).then(() => {
+        setIsCopied(true);
+        showNotification('Tautan presensi guru berhasil disalin! Silakan bagikan ke grup guru.', 'success');
+        setTimeout(() => setIsCopied(false), 3000);
+      }).catch(() => {
+        showNotification('Tautan: ' + portalUrl, 'info');
+      });
+    }
+  };
+
+  // ==========================================
   // CETAK & UNDUH QR CODE
   // ==========================================
   const downloadQrCode = () => {
-    const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=ABSENSI_SMPIT_ANNUR_ABHARI_2026";
-    fetch(qrUrl)
-      .then(res => res.blob())
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = "QR_Code_Absensi_SMPIT_Annur_Abhari.png";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        showNotification('Gambar QR Code berhasil diunduh!', 'success');
-      })
-      .catch(() => {
-        window.open(qrUrl, '_blank');
-      });
+    if (qrCodeDataUrl) {
+      const link = document.createElement('a');
+      link.href = qrCodeDataUrl;
+      link.download = "QR_Code_Presensi_Guru_SMPIT_Annur_Abhari.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showNotification('Gambar QR Code presensi berhasil diunduh!', 'success');
+    } else {
+      showNotification('QR Code sedang disiapkan...', 'info');
+    }
   };
 
   const openQrPrintModal = () => {
@@ -432,6 +519,119 @@ export default function AplikasiGuru() {
     setTimeout(() => {
       window.print();
     }, 150);
+  };
+
+  // Handler khusus untuk pengiriman presensi dari Portal HP Guru (Scan QR)
+  const handleRecordAttendanceFromPortal = async (data: {
+    teacherId: string;
+    meeting: string;
+    status: 'Hadir' | 'Izin' | 'Sakit';
+    note: string;
+    photoUrl: string | null;
+    manualName?: string;
+    manualNip?: string;
+    manualSubject?: string;
+  }) => {
+    let teacher = teachers.find(t => t.id === data.teacherId);
+    let teacherName = teacher ? teacher.name : (data.manualName || 'Guru SMP IT Annur Abhari').trim();
+    let teacherNip = teacher ? (teacher.nip || '-') : (data.manualNip?.trim() || '-');
+    let teacherId = teacher ? teacher.id : ('teacher_manual_' + Date.now());
+
+    // Jika guru baru diketik manual di portal, daftarkan otomatis ke database guru
+    if (!teacher && data.manualName && data.manualName.trim()) {
+      const newTeacherRecord = {
+        name: data.manualName.trim(),
+        nip: data.manualNip?.trim() || '-',
+        subject: data.manualSubject?.trim() || 'Guru Pengajar',
+        status: 'Aktif',
+        createdAt: serverTimestamp()
+      };
+      try {
+        const docRef = await addDoc(collection(db, 'teachers'), newTeacherRecord);
+        teacherId = docRef.id;
+      } catch (e) {
+        console.warn("Firestore teacher sync error, local only:", e);
+      }
+      setTeachers(prev => {
+        const updated = [...prev, { id: teacherId, ...newTeacherRecord }];
+        try { localStorage.setItem('smpit_teachers', JSON.stringify(updated)); } catch (err) {}
+        return updated;
+      });
+    }
+
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('id-ID');
+    const timeStr = now.toLocaleTimeString('id-ID');
+    const cleanSelectedMeeting = (data.meeting || '1').replace(/[^0-9]/g, '') || '1';
+
+    const todayTeacherAttendances = attendances.filter(
+      a => (a.teacherId === teacherId || (teacherName && a.teacherName === teacherName)) && a.date === todayStr
+    );
+
+    const existingForMeeting = todayTeacherAttendances.find(
+      a => (a.meeting === cleanSelectedMeeting || a.meeting === `Pertemuan ${cleanSelectedMeeting}`)
+    );
+
+    const recordData = {
+      teacherId: teacherId,
+      teacherName: teacherName,
+      teacherNip: teacherNip || '-',
+      meeting: cleanSelectedMeeting,
+      status: data.status,
+      note: data.note || '',
+      photoUrl: data.photoUrl || null,
+      date: todayStr,
+      time: timeStr,
+      timestamp: serverTimestamp()
+    };
+
+    try {
+      let finalId = 'att_' + Date.now();
+      if (existingForMeeting && existingForMeeting.id) {
+        // Perbarui sesi yang sudah ada
+        try {
+          await updateDoc(doc(db, 'attendances', existingForMeeting.id), recordData);
+        } catch (err) {
+          console.warn("Firestore update error, memperbarui lokal:", err);
+        }
+        setAttendances(prev => {
+          const updated = prev.map(a => a.id === existingForMeeting.id ? { ...a, ...recordData, id: existingForMeeting.id } : a);
+          try { localStorage.setItem('smpit_attendances', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        });
+      } else {
+        // Buat record presensi baru
+        try {
+          const docRef = await addDoc(collection(db, 'attendances'), recordData);
+          finalId = docRef.id;
+        } catch (err) {
+          console.warn("Firestore addDoc error, menyimpan lokal:", err);
+        }
+        setAttendances(prev => {
+          const updated = [{ ...recordData, id: finalId }, ...prev];
+          try { localStorage.setItem('smpit_attendances', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Presensi berhasil direkam!',
+        receipt: {
+          teacherName: teacherName,
+          teacherNip: teacherNip || '-',
+          meeting: cleanSelectedMeeting,
+          status: data.status,
+          date: todayStr,
+          time: timeStr,
+          photoUrl: data.photoUrl,
+          note: data.note
+        }
+      };
+    } catch (error: any) {
+      console.error("Gagal merekam presensi dari portal:", error);
+      return { success: false, message: error?.message || 'Gagal menyimpan presensi.' };
+    }
   };
 
   const handlePrintRekapPdf = () => {
@@ -768,15 +968,47 @@ export default function AplikasiGuru() {
     );
   });
 
+  // JIKA DALAM MODE PORTAL GURU (HASIL SCAN QR DI SMARTPHONE GURU)
+  if (viewMode === 'presensi_guru') {
+    return (
+      <TeacherMobilePortal
+        teachers={teachers}
+        attendances={attendances}
+        onRecordAttendance={handleRecordAttendanceFromPortal}
+        onSwitchToAdmin={() => setViewMode('admin')}
+      />
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-blue-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border border-blue-100">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl max-w-md w-full border border-blue-100">
+          
+          {/* TAB PILIHAN: ISI ABSENSI GURU VS LOGIN ADMIN */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl mb-6">
+            <button
+              type="button"
+              onClick={() => setViewMode('presensi_guru')}
+              className="py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              <Smartphone size={15} />
+              <span>Isi Presensi Guru</span>
+            </button>
+            <button
+              type="button"
+              className="py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 bg-white text-blue-950 shadow-xs"
+            >
+              <Users size={15} />
+              <span>Login Admin</span>
+            </button>
+          </div>
+
           <div className="text-center mb-6">
-            <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+            <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md">
               <Users className="text-white w-8 h-8" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-800">Aplikasi Guru</h1>
+            <h1 className="text-2xl font-bold text-gray-800">Aplikasi Presensi Guru</h1>
             <p className="text-gray-500 text-sm mt-1">SMP IT Annur Abhari</p>
           </div>
 
@@ -790,10 +1022,10 @@ export default function AplikasiGuru() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username Akses</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Username Admin / Piket</label>
               <input
                 type="text"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                 placeholder="Masukkan username..."
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
@@ -804,7 +1036,7 @@ export default function AplikasiGuru() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Password Akses</label>
               <input
                 type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                 placeholder="Masukkan password..."
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
@@ -813,11 +1045,24 @@ export default function AplikasiGuru() {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md"
+              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition shadow-md text-sm"
             >
-              Masuk
+              Masuk Dashboard Admin
             </button>
           </form>
+
+          {/* OPSI LANGSUNG UNTUK GURU YANG INGIN PRESENSI */}
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center space-y-2">
+            <p className="text-xs text-gray-500 font-medium">Bapak/Ibu Guru yang ingin mengisi presensi kehadiran:</p>
+            <button
+              type="button"
+              onClick={() => setViewMode('presensi_guru')}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-sm"
+            >
+              <Smartphone size={16} />
+              <span>Buka Portal Presensi Guru (Scan QR)</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -857,6 +1102,17 @@ export default function AplikasiGuru() {
           <button onClick={() => setActiveTab('files')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${activeTab === 'files' ? 'bg-blue-900 font-bold shadow-inner' : 'hover:bg-blue-700'}`}>
             <FolderOpen size={20} /> <span>Arsip File</span>
           </button>
+          
+          <div className="pt-2">
+            <button 
+              type="button"
+              onClick={() => setViewMode('presensi_guru')} 
+              className="w-full flex items-center space-x-2.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition text-xs shadow-md border border-emerald-400/30"
+              title="Buka tampilan yang dilihat guru ketika memindai QR Code di HP"
+            >
+              <Smartphone size={16} /> <span>Simulasi HP Guru</span>
+            </button>
+          </div>
         </nav>
         <div className="p-4 border-t border-blue-700">
           <button onClick={() => { setIsLoggedIn(false); showNotification('Anda telah keluar.'); }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-300 hover:bg-blue-900 transition">
@@ -1114,39 +1370,134 @@ export default function AplikasiGuru() {
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-3">
                   <QrCode size={26} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-1">QR Code Kehadiran Master</h3>
-                <p className="text-gray-500 text-xs mb-5 max-w-xs">
-                  Kode QR resmi untuk seluruh guru SMP IT Annur Abhari dalam melakukan absensi harian.
+                <h3 className="text-xl font-bold text-gray-800 mb-1">QR Code Presensi Guru</h3>
+                <p className="text-gray-500 text-xs mb-4 max-w-xs leading-relaxed">
+                  Pindai QR ini dengan kamera HP/Google Lens guru untuk langsung membuka formulir presensi dan bukti selfie di layar smartphone.
                 </p>
 
-                <div className="p-4 bg-white border-4 border-blue-100 rounded-3xl shadow-md mb-4 hover:shadow-lg transition">
-                  <img 
-                    src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=ABSENSI_SMPIT_ANNUR_ABHARI_2026" 
-                    alt="QR Absensi SMP IT Annur Abhari" 
-                    className="w-48 h-48 rounded-xl object-contain" 
-                  />
+                {/* Gambar QR Code Resmi */}
+                <div className="p-4 bg-white border-4 border-blue-500/80 rounded-3xl shadow-md mb-3 hover:shadow-lg transition flex items-center justify-center">
+                  {qrCodeDataUrl ? (
+                    <img 
+                      src={qrCodeDataUrl} 
+                      alt="QR Code Presensi Guru SMP IT Annur Abhari" 
+                      className="w-52 h-52 rounded-xl object-contain" 
+                    />
+                  ) : (
+                    <div className="w-52 h-52 flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-xl">
+                      <RefreshCw className="animate-spin text-blue-600 mb-2" size={24} />
+                      <span className="text-xs">Menyiapkan QR Code...</span>
+                    </div>
+                  )}
                 </div>
 
-                <span className="font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-4 py-1.5 rounded-full text-xs tracking-wider mb-6">
+                <span className="font-bold text-blue-800 bg-blue-50 border border-blue-200 px-4 py-1 rounded-full text-xs tracking-wider mb-4">
                   SMP IT ANNUR ABHARI
                 </span>
 
-                <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+                {/* Pengaturan Sumber URL QR Code */}
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-3 text-left">
+                  <span className="text-[11px] font-bold text-slate-700 block mb-1.5">Target Alamat URL QR:</span>
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-200/80 p-1 rounded-xl text-[11px] font-semibold mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setUrlMode('cloud')}
+                      className={`py-1.5 px-2 rounded-lg transition text-center ${
+                        urlMode === 'cloud' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      🌐 Cloud Publik (HP)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUrlMode('current')}
+                      className={`py-1.5 px-2 rounded-lg transition text-center ${
+                        urlMode === 'current' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      💻 Domain Saat Ini
+                    </button>
+                  </div>
+                  {urlMode === 'cloud' ? (
+                    <p className="text-[10px] text-emerald-700 font-medium bg-emerald-50 p-2 rounded-lg border border-emerald-200 leading-relaxed">
+                      ✓ <strong>URL Cloud Publik Aktif:</strong> QR ini dijamin dapat di-scan dan dibuka langsung di HP bapak/ibu guru lewat kamera atau Google Lens melalui jaringan internet (4G/WiFi).
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-700 font-medium bg-amber-50 p-2 rounded-lg border border-amber-200 leading-relaxed">
+                      ⚠️ <strong>Domain Browser:</strong> Menggunakan domain host saat ini ({window?.location?.hostname || 'localhost'}).
+                    </p>
+                  )}
+                </div>
+
+                {/* Tautan URL Langsung */}
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 text-left">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Tautan Presensi HP:</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyPortalLink}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-1"
+                    >
+                      {isCopied ? (
+                        <>
+                          <CheckCircle size={12} className="text-emerald-600" />
+                          <span className="text-emerald-600">Tersalin!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Salin Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="font-mono text-[11px] text-slate-700 truncate bg-white p-2 rounded-lg border border-slate-200 select-all">
+                    {portalUrl || 'Menyiapkan URL...'}
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2.5 w-full mb-3">
                   <button
                     onClick={openQrPrintModal}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-sm transition"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition"
                   >
-                    <Printer size={15} /> <span>Cetak Poster QR</span>
+                    <Printer size={15} /> <span>Cetak Poster</span>
                   </button>
                   <button
                     onClick={downloadQrCode}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-sm transition"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition"
                   >
-                    <Download size={15} /> <span>Unduh Gambar</span>
+                    <Download size={15} /> <span>Unduh PNG</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-4">
-                  * Lembar cetak dapat ditempelkan di meja piket atau ruang guru.
+
+                {/* Tombol Uji Coba Simulasi HP */}
+                <div className="w-full space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('presensi_guru')}
+                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
+                  >
+                    <Smartphone size={15} className="text-indigo-600" />
+                    <span>Uji Coba Tampilan HP Guru</span>
+                  </button>
+
+                  {portalUrl && (
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center text-[11px] text-gray-500 hover:text-blue-600 underline font-medium"
+                    >
+                      <span>Buka Tautan di Tab Baru</span>
+                      <ExternalLink size={12} className="ml-1" />
+                    </a>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-3">
+                  * Cetak poster ini untuk ditempel di meja piket atau dinding ruang guru.
                 </p>
               </div>
 
@@ -1789,36 +2140,50 @@ export default function AplikasiGuru() {
                 </div>
 
                 <div className="inline-block p-3 bg-white border-4 border-blue-600 rounded-2xl shadow-sm my-1">
-                  <img 
-                    src="https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=ABSENSI_SMPIT_ANNUR_ABHARI_2026" 
-                    alt="QR Code Presensi Guru" 
-                    className="w-52 h-52 mx-auto object-contain"
-                  />
+                  {qrCodeDataUrl ? (
+                    <img 
+                      src={qrCodeDataUrl} 
+                      alt="QR Code Presensi Guru" 
+                      className="w-56 h-56 mx-auto object-contain"
+                    />
+                  ) : (
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(portalUrl || '')}`} 
+                      alt="QR Code Presensi Guru" 
+                      className="w-56 h-56 mx-auto object-contain"
+                    />
+                  )}
                 </div>
 
-                <div className="mt-4 bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 text-left text-xs space-y-1.5 text-gray-700">
+                <div className="mt-1 mb-2">
+                  <p className="text-[10px] text-gray-500 font-mono select-all">
+                    Tautan Akses: {portalUrl}
+                  </p>
+                </div>
+
+                <div className="mt-3 bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 text-left text-xs space-y-1.5 text-gray-700">
                   <p className="font-bold text-blue-900 text-xs mb-1 text-center uppercase tracking-wider">
-                    Petunjuk Pengisian Absensi:
+                    Petunjuk Pengisian Absensi Melalui Smartphone Guru:
                   </p>
                   <div className="flex items-start space-x-2">
                     <span className="font-bold text-blue-700">1.</span>
-                    <span>Pindai QR Code di atas menggunakan kamera smartphone atau buka aplikasi guru.</span>
+                    <span>Buka kamera smartphone atau Google Lens, arahkan ke QR Code di atas.</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="font-bold text-blue-700">2.</span>
-                    <span>Pilih nama guru dan sesi pertemuan (Pertemuan 1 s/d 4).</span>
+                    <span>Ketuk tautan yang muncul untuk membuka Portal Presensi Guru SMP IT Annur Abhari di layar HP Anda.</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="font-bold text-blue-700">3.</span>
-                    <span>Tentukan status kehadiran: <b>Hadir</b>, <b>Izin</b>, atau <b>Sakit</b>.</span>
+                    <span>Pilih nama guru dan sesi pertemuan (Sesi 1, 2, 3, atau 4).</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="font-bold text-blue-700">4.</span>
-                    <span>Ambil foto selfie bukti kehadiran melalui kamera untuk verifikasi.</span>
+                    <span>Pilih status kehadiran: <b>Hadir</b>, <b>Izin</b>, atau <b>Sakit</b>, lalu ambil foto selfie bukti presensi.</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="font-bold text-blue-700">5.</span>
-                    <span>Klik tombol <b>Konfirmasi Kehadiran</b> untuk menyimpan data.</span>
+                    <span>Tekan tombol <b>Kirim Presensi Sekarang</b>. Struk digital bukti presensi akan langsung muncul di HP Anda.</span>
                   </div>
                 </div>
 
