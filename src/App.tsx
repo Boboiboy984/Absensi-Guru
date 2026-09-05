@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
+import jsQR from 'jsqr';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -7,7 +8,7 @@ import {
   Home, Users, QrCode, FileText, Download, LogOut, Plus, Trash2, Printer, 
   FolderOpen, Edit, Search, Phone, Mail, X, Camera, RefreshCw, CheckCircle, 
   AlertTriangle, AlertCircle, Image as ImageIcon, Eye, RotateCw, Smartphone,
-  ExternalLink, Copy, Share2
+  ExternalLink, Copy, Share2, ScanLine, IdCard, Sparkles, Globe, Volume2, ShieldCheck
 } from 'lucide-react';
 import TeacherMobilePortal from './components/TeacherMobilePortal';
 
@@ -67,12 +68,33 @@ export default function AplikasiGuru() {
   });
 
   // Pilihan Sumber URL QR Code
-  const [urlMode, setUrlMode] = useState<'cloud' | 'current' | 'custom'>('cloud');
+  // 'live': URL Server Aktif saat ini (Otomatis menyesuaikan domain Vercel/Cloud Run)
+  // 'custom': Alamat domain sekolah atau tunnel kustom
+  const [urlMode, setUrlMode] = useState<'live' | 'custom'>('live');
   const [customUrlInput, setCustomUrlInput] = useState<string>('');
   // Tautan URL Resmi untuk Scan Presensi Guru
-  const [portalUrl, setPortalUrl] = useState<string>('https://ais-pre-w76cmovxwpxtxnvobsuz3g-576001118961.asia-east1.run.app/?presensi=guru');
+  const [portalUrl, setPortalUrl] = useState<string>('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
+
+  // Mode Absensi di Tab QR: 'form' (Form Manual & Selfie) atau 'scanner' (Scanner Kamera Meja Piket)
+  const [adminScanMode, setAdminScanMode] = useState<'form' | 'scanner'>('form');
+  const [isScannerRunning, setIsScannerRunning] = useState(false);
+  const [scannerCameraError, setScannerCameraError] = useState<string | null>(null);
+  const [lastScannedResult, setLastScannedResult] = useState<{
+    teacher: any;
+    meeting: string;
+    time: string;
+    photo: string;
+  } | null>(null);
+  const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
+  const isScanningRef = useRef(false);
+  const lastScanCooldownRef = useRef(0);
+
+  // Modal Kartu QR Digital Guru (ID Card Presensi)
+  const [selectedTeacherForCard, setSelectedTeacherForCard] = useState<any | null>(null);
+  const [teacherCardQrDataUrl, setTeacherCardQrDataUrl] = useState<string>('');
 
   const [teachers, setTeachers] = useState<any[]>(() => {
     try {
@@ -145,6 +167,30 @@ export default function AplikasiGuru() {
       setToast({ show: false, message: '', type: 'info' });
     }, 4000);
   };
+
+  // Dengarkan perubahan URL / hash secara real-time
+  useEffect(() => {
+    const checkUrlMode = () => {
+      if (typeof window !== 'undefined') {
+        const search = (window.location.search || '').toLowerCase();
+        const hash = (window.location.hash || '').toLowerCase();
+        const href = (window.location.href || '').toLowerCase();
+        if (
+          search.includes('presensi') || search.includes('scan') || search.includes('guru') || search.includes('absen') ||
+          hash.includes('presensi') || hash.includes('scan') || hash.includes('guru') || hash.includes('absen') ||
+          href.includes('presensi') || href.includes('scan')
+        ) {
+          setViewMode('presensi_guru');
+        }
+      }
+    };
+    window.addEventListener('popstate', checkUrlMode);
+    window.addEventListener('hashchange', checkUrlMode);
+    return () => {
+      window.removeEventListener('popstate', checkUrlMode);
+      window.removeEventListener('hashchange', checkUrlMode);
+    };
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -440,23 +486,32 @@ export default function AplikasiGuru() {
   // ==========================================
   // GENERASI QR CODE REAL DENGAN TAUTAN URL HP GURU
   // ==========================================
-  const OFFICIAL_CLOUD_URL = 'https://ais-pre-w76cmovxwpxtxnvobsuz3g-576001118961.asia-east1.run.app/?presensi=guru';
+  const FALLBACK_DEV_URL = 'https://presensi-guru.vercel.app/?presensi=guru';
 
   useEffect(() => {
-    let target = OFFICIAL_CLOUD_URL;
+    let target = '';
 
-    if (urlMode === 'current' && typeof window !== 'undefined' && window.location) {
-      const origin = window.location.origin;
-      const pathname = window.location.pathname;
-      target = `${origin}${pathname}?presensi=guru`;
-    } else if (urlMode === 'custom' && customUrlInput.trim()) {
+    if (urlMode === 'custom' && customUrlInput.trim()) {
       let custom = customUrlInput.trim();
       if (!custom.startsWith('http://') && !custom.startsWith('https://')) {
         custom = 'https://' + custom;
       }
       target = custom.includes('?') ? `${custom}&presensi=guru` : `${custom}/?presensi=guru`;
     } else {
-      target = OFFICIAL_CLOUD_URL;
+      // Prioritaskan domain aktif saat ini yang sedang melayani request
+      if (typeof window !== 'undefined' && window.location) {
+        const origin = window.location.origin;
+        const pathname = window.location.pathname || '';
+        // Jika bukan localhost, gunakan origin server nyata yang sedang aktif
+        if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+          const cleanPath = pathname.endsWith('/') ? pathname : `${pathname}/`;
+          target = `${origin}${cleanPath}?presensi=guru`;
+        } else {
+          target = FALLBACK_DEV_URL;
+        }
+      } else {
+        target = FALLBACK_DEV_URL;
+      }
     }
 
     setPortalUrl(target);
@@ -1396,36 +1451,59 @@ export default function AplikasiGuru() {
                 </span>
 
                 {/* Pengaturan Sumber URL QR Code */}
-                <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-3 text-left">
-                  <span className="text-[11px] font-bold text-slate-700 block mb-1.5">Target Alamat URL QR:</span>
-                  <div className="grid grid-cols-2 gap-1.5 bg-slate-200/80 p-1 rounded-xl text-[11px] font-semibold mb-2">
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 mb-3 text-left">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-700">Target Alamat URL QR:</span>
+                    <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                      Aktif & Siap Scan
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-200/80 p-1 rounded-xl text-[11px] font-semibold mb-2.5">
                     <button
                       type="button"
-                      onClick={() => setUrlMode('cloud')}
+                      onClick={() => setUrlMode('live')}
                       className={`py-1.5 px-2 rounded-lg transition text-center ${
-                        urlMode === 'cloud' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                        urlMode === 'live' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      🌐 Cloud Publik (HP)
+                      ⚡ Server Aktif (Otomatis)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUrlMode('current')}
+                      onClick={() => setUrlMode('custom')}
                       className={`py-1.5 px-2 rounded-lg transition text-center ${
-                        urlMode === 'current' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                        urlMode === 'custom' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      💻 Domain Saat Ini
+                      ✏️ Tautan Kustom
                     </button>
                   </div>
-                  {urlMode === 'cloud' ? (
-                    <p className="text-[10px] text-emerald-700 font-medium bg-emerald-50 p-2 rounded-lg border border-emerald-200 leading-relaxed">
-                      ✓ <strong>URL Cloud Publik Aktif:</strong> QR ini dijamin dapat di-scan dan dibuka langsung di HP bapak/ibu guru lewat kamera atau Google Lens melalui jaringan internet (4G/WiFi).
-                    </p>
+
+                  {urlMode === 'live' ? (
+                    <div className="text-[11px] text-emerald-800 bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200 leading-relaxed space-y-1">
+                      <p className="font-semibold flex items-center">
+                        <CheckCircle size={14} className="text-emerald-600 mr-1.5 shrink-0" />
+                        URL Live Aktif Terhubung Langsung
+                      </p>
+                      <p className="text-[10px] text-emerald-700">
+                        QR Code menggunakan alamat server live yang sedang online saat ini. Tidak akan ada error 404 / <em>Page not found</em> saat di-scan HP guru.
+                      </p>
+                    </div>
                   ) : (
-                    <p className="text-[10px] text-amber-700 font-medium bg-amber-50 p-2 rounded-lg border border-amber-200 leading-relaxed">
-                      ⚠️ <strong>Domain Browser:</strong> Menggunakan domain host saat ini ({window?.location?.hostname || 'localhost'}).
-                    </p>
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-600">
+                        Ketik Tautan / Domain Khusus:
+                      </label>
+                      <input
+                        type="text"
+                        value={customUrlInput}
+                        onChange={(e) => setCustomUrlInput(e.target.value)}
+                        placeholder="Contoh: https://presensi.smpitannur.sch.id"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
                   )}
                 </div>
 
