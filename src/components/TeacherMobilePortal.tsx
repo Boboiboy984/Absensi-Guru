@@ -78,7 +78,9 @@ export default function TeacherMobilePortal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedReceipt, setSubmittedReceipt] = useState<{
     teacherName: string;
-    teacherNip: string;
+    teacherKelas?: string;
+    teacherSubject?: string;
+    teacherNip?: string;
     meeting: string;
     status: string;
     date: string;
@@ -199,27 +201,32 @@ export default function TeacherMobilePortal({
     if (inputMode === 'select') {
       if (!selectedTeacherId) {
         setErrorMessage("Silakan pilih nama Anda dalam daftar guru terlebih dahulu!");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
     } else {
       if (!manualName.trim()) {
         setErrorMessage("Silakan ketik nama lengkap Anda terlebih dahulu!");
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
     }
 
-    if (!capturedPhoto) {
-      setErrorMessage("Harap ambil foto selfie terlebih dahulu sebagai bukti kehadiran fisik Anda.");
-      return;
-    }
-
     if (!selectedKelas) {
       setErrorMessage("Harap pilih Kelas terlebih dahulu!");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     if (!selectedSubject.trim()) {
       setErrorMessage("Harap isi Mata Pelajaran terlebih dahulu!");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (!capturedPhoto) {
+      setErrorMessage("Harap ambil foto selfie terlebih dahulu sebagai bukti kehadiran fisik Anda.");
+      window.scrollTo({ top: 300, behavior: 'smooth' });
       return;
     }
 
@@ -352,7 +359,11 @@ export default function TeacherMobilePortal({
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-slate-200">
                   <span className="text-slate-500">Kelas</span>
-                  <span className="font-mono font-semibold text-slate-700">{submittedReceipt.teacherNip || '-'}</span>
+                  <span className="font-mono font-semibold text-slate-700">{submittedReceipt.teacherKelas || submittedReceipt.teacherNip || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="text-slate-500">Mata Pelajaran</span>
+                  <span className="font-semibold text-slate-700">{submittedReceipt.teacherSubject || '-'}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-slate-200">
                   <span className="text-slate-500">Sesi Pertemuan</span>
@@ -404,7 +415,7 @@ export default function TeacherMobilePortal({
           </div>
         ) : (
           /* FORMULIR INPUT PRESENSI GURU */
-          <form onSubmit={handleSubmit} className="space-y-4 animate-fadeIn">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4 animate-fadeIn">
             
             {/* Info Box */}
             <div className="bg-blue-50/90 border border-blue-200 rounded-2xl p-3.5 flex items-start space-x-3 text-xs text-blue-900">
@@ -421,7 +432,7 @@ export default function TeacherMobilePortal({
             {errorMessage && (
               <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs flex items-start space-x-2.5">
                 <AlertCircle className="text-rose-600 shrink-0 mt-0.5" size={16} />
-                <span>{errorMessage}</span>
+                <span className="font-semibold leading-relaxed">{errorMessage}</span>
               </div>
             )}
 
@@ -454,7 +465,6 @@ export default function TeacherMobilePortal({
               {inputMode === 'select' && teachers.length > 0 ? (
                 <div>
                   <select
-                    required
                     value={selectedTeacherId}
                     onChange={(e) => setSelectedTeacherId(e.target.value)}
                     className="w-full px-3.5 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold text-slate-800 bg-slate-50"
@@ -502,7 +512,7 @@ export default function TeacherMobilePortal({
                 <div className="space-y-3">
                   {teachers.length === 0 && (
                     <p className="text-[11px] text-blue-700 bg-blue-50 p-2.5 rounded-xl border border-blue-100">
-                      ℹ️ Daftar guru belum diinput admin. Bapak/Ibu guru silakan langsung ketik nama Anda di bawah ini:
+                      ℹ️ Silakan langsung ketik nama lengkap Anda di bawah ini:
                     </p>
                   )}
                   <div>
@@ -511,7 +521,6 @@ export default function TeacherMobilePortal({
                     </label>
                     <input
                       type="text"
-                      required
                       value={manualName}
                       onChange={(e) => setManualName(e.target.value)}
                       placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd"
@@ -521,43 +530,39 @@ export default function TeacherMobilePortal({
                 </div>
               )}
 
-              {/* Kelas & Mata Pelajaran (Berlaku untuk semua mode) */}
-              {((inputMode === 'select' && selectedTeacherId) || (inputMode === 'manual')) && (
-                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200">
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                      Kelas <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={selectedKelas}
-                      onChange={(e) => setSelectedKelas(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
-                    >
-                      <option value="">-- Pilih Kelas --</option>
-                      <option value="VII Putra">VII Putra</option>
-                      <option value="VII Putri">VII Putri</option>
-                      <option value="VIII Putra">VIII Putra</option>
-                      <option value="VIII Putri">VIII Putri</option>
-                      <option value="IX Putra">IX Putra</option>
-                      <option value="IX Putri">IX Putri</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                      Mata Pelajaran <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                      placeholder="Contoh: Matematika"
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
-                    />
-                  </div>
+              {/* Kelas & Mata Pelajaran (Selalu tampil agar jelas dan mudah diisi) */}
+              <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                    Kelas <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={selectedKelas}
+                    onChange={(e) => setSelectedKelas(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50 font-medium text-slate-800"
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    <option value="VII Putra">VII Putra</option>
+                    <option value="VII Putri">VII Putri</option>
+                    <option value="VIII Putra">VIII Putra</option>
+                    <option value="VIII Putri">VIII Putri</option>
+                    <option value="IX Putra">IX Putra</option>
+                    <option value="IX Putri">IX Putri</option>
+                  </select>
                 </div>
-              )}
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                    Mata Pelajaran <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    placeholder="Contoh: Matematika"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50 font-medium text-slate-800"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* LANGKAH 2: PILIH SESI PERTEMUAN (1, 2, 3, 4) */}
@@ -771,7 +776,7 @@ export default function TeacherMobilePortal({
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={isSubmitting || teachers.length === 0}
+                disabled={isSubmitting}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-extrabold py-4 px-4 rounded-2xl shadow-lg transition flex items-center justify-center space-x-2 text-base"
               >
                 {isSubmitting ? (

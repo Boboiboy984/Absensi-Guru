@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import { initializeApp } from 'firebase/app';
@@ -8,7 +8,8 @@ import {
   Home, Users, QrCode, FileText, Download, LogOut, Plus, Trash2, Printer, 
   FolderOpen, Edit, Search, Phone, Mail, X, Camera, RefreshCw, CheckCircle, 
   AlertTriangle, AlertCircle, Image as ImageIcon, Eye, RotateCw, Smartphone,
-  ExternalLink, Copy, Share2, ScanLine, IdCard, Sparkles, Globe, Volume2, ShieldCheck
+  ExternalLink, Copy, Share2, ScanLine, IdCard, Sparkles, Globe, Volume2, ShieldCheck,
+  Calendar, CalendarCheck, BarChart3, TrendingUp, Award, Layers, CheckCircle2, XCircle
 } from 'lucide-react';
 import TeacherMobilePortal from './components/TeacherMobilePortal';
 
@@ -29,6 +30,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+const withTimeout = <T,>(promise: Promise<T>, ms: number = 3000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
+};
 
 export default function AplikasiGuru() {
   const DEFAULT_TEACHERS: any[] = [];
@@ -133,8 +141,7 @@ export default function AplikasiGuru() {
     return [];
   });
 
-  const [newTeacher, setNewTeacher] = useState({ name: '', kelas: '', subject: '', status: 'PNS', phone: '', email: '' });
-  const [teacherSearch, setTeacherSearch] = useState('');
+  const [newTeacher, setNewTeacher] = useState({ name: '', status: 'PNS', phone: '', email: '' });
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState('1');
@@ -146,9 +153,14 @@ export default function AplikasiGuru() {
   const [attendanceKelas, setAttendanceKelas] = useState('');
   const [attendanceSubject, setAttendanceSubject] = useState('');
 
-  // Filter Rekap Absensi
+  // Filter & Tampilan Rekap Absensi
   const [filterMonth, setFilterMonth] = useState<string>('Semua');
   const [filterTeacher, setFilterTeacher] = useState<string>('Semua');
+  const [rekapTabMode, setRekapTabMode] = useState<'all' | 'monthly' | 'daily'>('all');
+  const [selectedRekapMonth, setSelectedRekapMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+  });
 
   // Kamera & Foto Kehadiran
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -279,17 +291,20 @@ export default function AplikasiGuru() {
 
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTeacher.name || !newTeacher.kelas) {
-      showNotification('Nama dan Kelas guru wajib diisi!', 'error');
+    if (!newTeacher.name || !newTeacher.name.trim()) {
+      showNotification('Nama lengkap guru wajib diisi!', 'error');
       return;
     }
     const teacherData = {
-      ...newTeacher,
+      name: newTeacher.name.trim(),
+      status: newTeacher.status || 'PNS',
+      phone: newTeacher.phone?.trim() || '',
+      email: newTeacher.email?.trim() || '',
       createdAt: serverTimestamp()
     };
     let newId = 't_' + Date.now();
     try {
-      const docRef = await addDoc(collection(db, 'teachers'), teacherData);
+      const docRef = await withTimeout(addDoc(collection(db, 'teachers'), teacherData), 3000);
       newId = docRef.id;
     } catch (error) {
       console.warn("Firestore addDoc error, menyimpan secara lokal:", error);
@@ -299,7 +314,7 @@ export default function AplikasiGuru() {
       try { localStorage.setItem('smpit_teachers', JSON.stringify(updated)); } catch (e) {}
       return updated;
     });
-    setNewTeacher({ name: '', kelas: '', subject: '', status: 'PNS', phone: '', email: '' });
+    setNewTeacher({ name: '', status: 'PNS', phone: '', email: '' });
     showNotification('Data guru berhasil ditambahkan!', 'success');
   };
 
@@ -309,18 +324,19 @@ export default function AplikasiGuru() {
 
   const handleUpdateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTeacher || !editingTeacher.id) return;
+    if (!editingTeacher || !editingTeacher.id || !editingTeacher.name?.trim()) {
+      showNotification('Nama lengkap guru wajib diisi!', 'error');
+      return;
+    }
     const updatedData = {
-      name: editingTeacher.name || '',
-      kelas: editingTeacher.kelas || '',
-      subject: editingTeacher.subject || '',
+      name: editingTeacher.name.trim(),
       status: editingTeacher.status || 'PNS',
-      phone: editingTeacher.phone || '',
-      email: editingTeacher.email || ''
+      phone: editingTeacher.phone?.trim() || '',
+      email: editingTeacher.email?.trim() || ''
     };
     try {
       const teacherDocRef = doc(db, 'teachers', editingTeacher.id);
-      await updateDoc(teacherDocRef, updatedData);
+      await withTimeout(updateDoc(teacherDocRef, updatedData), 3000);
     } catch (error) {
       console.warn("Firestore updateDoc error, memperbarui secara lokal:", error);
     }
@@ -607,7 +623,7 @@ export default function AplikasiGuru() {
         createdAt: serverTimestamp()
       };
       try {
-        const docRef = await addDoc(collection(db, 'teachers'), newTeacherRecord);
+        const docRef = await withTimeout(addDoc(collection(db, 'teachers'), newTeacherRecord), 3000);
         teacherId = docRef.id;
       } catch (e) {
         console.warn("Firestore teacher sync error, local only:", e);
@@ -651,7 +667,7 @@ export default function AplikasiGuru() {
       if (existingForMeeting && existingForMeeting.id) {
         // Perbarui sesi yang sudah ada
         try {
-          await updateDoc(doc(db, 'attendances', existingForMeeting.id), recordData);
+          await withTimeout(updateDoc(doc(db, 'attendances', existingForMeeting.id), recordData), 3000);
         } catch (err) {
           console.warn("Firestore update error, memperbarui lokal:", err);
         }
@@ -663,7 +679,7 @@ export default function AplikasiGuru() {
       } else {
         // Buat record presensi baru
         try {
-          const docRef = await addDoc(collection(db, 'attendances'), recordData);
+          const docRef = await withTimeout(addDoc(collection(db, 'attendances'), recordData), 3000);
           finalId = docRef.id;
         } catch (err) {
           console.warn("Firestore addDoc error, menyimpan lokal:", err);
@@ -681,6 +697,7 @@ export default function AplikasiGuru() {
         receipt: {
           teacherName: teacherName,
           teacherKelas: teacherKelas || '-',
+          teacherSubject: teacherSubject || '-',
           meeting: cleanSelectedMeeting,
           status: data.status,
           date: todayStr,
@@ -769,7 +786,7 @@ export default function AplikasiGuru() {
       if (existingForMeeting && existingForMeeting.id) {
         // Update existing record
         try {
-          await updateDoc(doc(db, 'attendances', existingForMeeting.id), recordData);
+          await withTimeout(updateDoc(doc(db, 'attendances', existingForMeeting.id), recordData), 3000);
         } catch (err) {
           console.warn("Firestore update error, memperbarui secara lokal:", err);
         }
@@ -783,7 +800,7 @@ export default function AplikasiGuru() {
         // Create new record
         let newId = 'att_' + Date.now();
         try {
-          const docRef = await addDoc(collection(db, 'attendances'), recordData);
+          const docRef = await withTimeout(addDoc(collection(db, 'attendances'), recordData), 3000);
           newId = docRef.id;
         } catch (err) {
           console.warn("Firestore addDoc error, menyimpan secara lokal:", err);
@@ -799,6 +816,8 @@ export default function AplikasiGuru() {
       setSelectedTeacherId('');
       setSelectedMeeting('1');
       setAttendanceStatus('Hadir');
+      setAttendanceKelas('');
+      setAttendanceSubject('');
       setAttendanceNote('');
       setCapturedPhoto(null);
       stopCamera();
@@ -862,21 +881,82 @@ export default function AplikasiGuru() {
     showNotification(`Dokumen "${title}" berhasil dihapus.`, 'success');
   };
 
+  // Helper parsing & labeling Indonesian month-year
+  const INDONESIAN_MONTHS = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const parseMonthYear = (dateStr?: string): string => {
+    if (!dateStr) return '';
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const m = parseInt(parts[1], 10);
+        const y = parts[2].trim();
+        if (!isNaN(m) && m >= 1 && m <= 12) {
+          return `${String(m).padStart(2, '0')}-${y}`;
+        }
+      }
+    } else if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          const m = parseInt(parts[1], 10);
+          const y = parts[0].trim();
+          if (!isNaN(m) && m >= 1 && m <= 12) {
+            return `${String(m).padStart(2, '0')}-${y}`;
+          }
+        } else {
+          const m = parseInt(parts[1], 10);
+          const y = parts[2].trim();
+          if (!isNaN(m) && m >= 1 && m <= 12) {
+            return `${String(m).padStart(2, '0')}-${y}`;
+          }
+        }
+      }
+    }
+    return '';
+  };
+
+  const formatMonthYear = (myStr: string): string => {
+    if (!myStr || myStr === 'Semua') return 'Semua Periode';
+    const parts = myStr.split('-');
+    if (parts.length === 2) {
+      const m = parseInt(parts[0], 10);
+      const y = parts[1];
+      if (m >= 1 && m <= 12) {
+        return `${INDONESIAN_MONTHS[m - 1]} ${y}`;
+      }
+    }
+    return myStr;
+  };
+
+  const currentMonthYearKey = (() => {
+    const now = new Date();
+    return `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+  })();
+
+  const availableMonthYears = Array.from(
+    new Set([
+      currentMonthYearKey,
+      ...attendances.map(a => parseMonthYear(a.date)).filter(Boolean)
+    ])
+  ).sort((a, b) => {
+    const [mA, yA] = a.split('-').map(Number);
+    const [mB, yB] = b.split('-').map(Number);
+    if (yA !== yB) return yB - yA;
+    return mB - mA;
+  });
+
   const filteredAttendances = attendances.filter(a => {
     let matchMonth = true;
     let matchTeacher = true;
 
     if (filterMonth !== 'Semua') {
-      // a.date format is usually "DD/MM/YYYY" or "MM/DD/YYYY" depending on how it's saved.
-      // Let's assume standard JS locale date string.
-      // Let's just do a simple substring match on month/year if possible, or parse it.
-      // In earlier code: `date: now.toLocaleDateString('id-ID')` => "DD/MM/YYYY"
-      const dateParts = a.date ? a.date.split('/') : [];
-      if (dateParts.length === 3) {
-        const monthYear = `${dateParts[1]}-${dateParts[2]}`; // "MM-YYYY"
-        if (monthYear !== filterMonth) {
-          matchMonth = false;
-        }
+      const my = parseMonthYear(a.date);
+      if (my && my !== filterMonth) {
+        matchMonth = false;
       }
     }
 
@@ -889,69 +969,115 @@ export default function AplikasiGuru() {
     return matchMonth && matchTeacher;
   });
 
-  const exportToExcel = () => {
+  // Perhitungan Rekapitulasi Kehadiran Bulanan Per Guru
+  const monthlyTeacherSummary = useMemo(() => {
+    // Gabungkan seluruh guru terdaftar
+    const registeredTeacherNames = new Set(teachers.map(t => t.name.toLowerCase().trim()));
+    const extraTeachersFromAtts = attendances
+      .filter(a => {
+        const my = parseMonthYear(a.date);
+        const matchMonth = selectedRekapMonth === 'Semua' || my === selectedRekapMonth;
+        return matchMonth && a.teacherName && !registeredTeacherNames.has(a.teacherName.toLowerCase().trim());
+      })
+      .reduce((acc: any[], a) => {
+        const nameLower = a.teacherName.toLowerCase().trim();
+        if (!acc.some((item: any) => item.name.toLowerCase().trim() === nameLower)) {
+          acc.push({
+            id: a.teacherId || ('manual_' + nameLower),
+            name: a.teacherName,
+            status: 'Guru Pengajar',
+            phone: '',
+            email: ''
+          });
+        }
+        return acc;
+      }, []);
+
+    const allTeachersForRecap = [...teachers, ...extraTeachersFromAtts];
+
+    return allTeachersForRecap.map((teacher, index) => {
+      const teacherRecords = attendances.filter(a => {
+        const isSameTeacher = 
+          (a.teacherId && a.teacherId === teacher.id) ||
+          (a.teacherName && a.teacherName.toLowerCase().trim() === teacher.name.toLowerCase().trim());
+        
+        const recordMonth = parseMonthYear(a.date);
+        const isSameMonth = selectedRekapMonth === 'Semua' || recordMonth === selectedRekapMonth;
+
+        return isSameTeacher && isSameMonth;
+      });
+
+      const hadir = teacherRecords.filter(a => !a.status || a.status === 'Hadir').length;
+      const izin = teacherRecords.filter(a => a.status === 'Izin').length;
+      const sakit = teacherRecords.filter(a => a.status === 'Sakit').length;
+      const total = hadir + izin + sakit;
+      const persentase = total > 0 ? Math.round((hadir / total) * 100) : 0;
+
+      let evaluasi = 'Belum Ada Presensi';
+      if (total > 0) {
+        if (persentase >= 90) evaluasi = 'Sangat Baik';
+        else if (persentase >= 75) evaluasi = 'Baik';
+        else if (persentase >= 50) evaluasi = 'Cukup';
+        else evaluasi = 'Perlu Perhatian';
+      }
+
+      return {
+        no: index + 1,
+        id: teacher.id,
+        name: teacher.name,
+        status: teacher.status || 'PNS',
+        phone: teacher.phone || '',
+        hadir,
+        izin,
+        sakit,
+        total,
+        persentase,
+        evaluasi
+      };
+    });
+  }, [teachers, attendances, selectedRekapMonth]);
+
+  const totalMonthlyHadir = monthlyTeacherSummary.reduce((acc, c) => acc + c.hadir, 0);
+  const totalMonthlyIzin = monthlyTeacherSummary.reduce((acc, c) => acc + c.izin, 0);
+  const totalMonthlySakit = monthlyTeacherSummary.reduce((acc, c) => acc + c.sakit, 0);
+  const totalMonthlySesi = monthlyTeacherSummary.reduce((acc, c) => acc + c.total, 0);
+  const averageMonthlyAttendance = totalMonthlySesi > 0 
+    ? Math.round((totalMonthlyHadir / totalMonthlySesi) * 100) 
+    : 0;
+
+  const exportMonthlyRecapExcel = () => {
+    const periodLabel = formatMonthYear(selectedRekapMonth);
     const todayStr = new Date().toLocaleDateString('id-ID', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
-    const totalRekap = filteredAttendances.length;
-    const totalHadir = filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length;
-    const totalIzin = filteredAttendances.filter(a => a.status === 'Izin').length;
-    const totalSakit = filteredAttendances.filter(a => a.status === 'Sakit').length;
 
-    let tableRows = '';
-    filteredAttendances.forEach((row, idx) => {
-      const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
-      const statusText = row.status || 'Hadir';
-      const statusBg = statusText === 'Hadir' ? '#DCFCE7' : statusText === 'Izin' ? '#FEF3C7' : '#FEE2E2';
-      const statusColor = statusText === 'Hadir' ? '#15803D' : statusText === 'Izin' ? '#B45309' : '#B91C1C';
-      
-      tableRows += `
+    let teacherRowsHtml = '';
+    monthlyTeacherSummary.forEach((row, idx) => {
+      const evalBg = row.total === 0 ? '#F3F4F6' : row.persentase >= 90 ? '#DCFCE7' : row.persentase >= 75 ? '#EFF6FF' : '#FEF3C7';
+      const evalColor = row.total === 0 ? '#6B7280' : row.persentase >= 90 ? '#15803D' : row.persentase >= 75 ? '#1D4ED8' : '#B45309';
+
+      teacherRowsHtml += `
         <tr style="height: 28px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
           <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${idx + 1}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${row.date || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt; font-family: monospace;">${row.time || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt; mso-number-format: '0';">${meetingNum}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; background-color: ${statusBg}; color: ${statusColor}; font-size: 11pt;">${statusText}</td>
-          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.teacherName || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt; mso-number-format: '\\@';">${row.teacherKelas || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${row.teacherSubject || '-'}</td>
-          <td style="text-align: left; border: 1px solid #D1D5DB; font-size: 11pt;">${row.note || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${row.photoUrl ? 'Terverifikasi' : 'Tanpa Foto'}</td>
+          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.name}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.status}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #15803D; font-size: 11pt; background-color: #F0FDF4;">${row.hadir}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B45309; font-size: 11pt; background-color: #FFFBEB;">${row.izin}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B91C1C; font-size: 11pt; background-color: #FEF2F2;">${row.sakit}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt; background-color: #F8FAFC;">${row.total}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.persentase}%</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt; font-weight: bold; background-color: ${evalBg}; color: ${evalColor};">${row.evaluasi}</td>
         </tr>
       `;
     });
-
-    if (filteredAttendances.length === 0) {
-      tableRows = `
-        <tr>
-          <td colspan="10" style="text-align: center; padding: 20px; border: 1px solid #D1D5DB; color: #6B7280; font-style: italic;">
-            Belum ada catatan absensi yang tersimpan di database.
-          </td>
-        </tr>
-      `;
-    }
 
     const excelTemplate = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-        <!--[if gte mso 9]>
-        <xml>
-          <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-              <x:ExcelWorksheet>
-                <x:Name>Rekap Presensi Guru</x:Name>
-                <x:WorksheetOptions>
-                  <x:DisplayGridlines/>
-                </x:WorksheetOptions>
-              </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-          </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
         <style>
           body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; }
           table { border-collapse: collapse; width: 100%; }
@@ -959,7 +1085,6 @@ export default function AplikasiGuru() {
       </head>
       <body>
         <table>
-          <!-- KOP SURAT SEKOLAH -->
           <tr>
             <td colspan="9" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
               YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
@@ -977,29 +1102,264 @@ export default function AplikasiGuru() {
           </tr>
           <tr>
             <td colspan="9" style="text-align: center; font-size: 14pt; font-weight: bold; padding: 8px 0; border-top: 2px solid #1E3A8A; border-bottom: 2px solid #1E3A8A;">
-              LAPORAN REKAPITULASI PRESENSI KEHADIRAN GURU
+              REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU
             </td>
           </tr>
           <tr>
             <td colspan="9" style="text-align: left; font-size: 10pt; color: #374151; padding: 6px 0;">
-              <b>Tanggal Laporan:</b> ${todayStr} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Rekap:</b> ${totalRekap} Data &nbsp;&nbsp;|&nbsp;&nbsp; <b>Hadir:</b> ${totalHadir} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Izin:</b> ${totalIzin} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Sakit:</b> ${totalSakit}
+              <b>Periode Rekap:</b> ${periodLabel} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Guru:</b> ${monthlyTeacherSummary.length} Orang &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Sesi Hadir:</b> ${totalMonthlyHadir} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Izin:</b> ${totalMonthlyIzin} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Sakit:</b> ${totalMonthlySakit} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Rata-rata Kehadiran:</b> ${averageMonthlyAttendance}%
             </td>
           </tr>
           <tr><td colspan="9" style="height: 10px;"></td></tr>
-
-          <!-- TABEL HEADER -->
           <thead>
             <tr style="background-color: #1E40AF; color: #FFFFFF; font-weight: bold; height: 36px;">
               <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 110px;">TANGGAL</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 85px;">WAKTU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 65px;">SESI</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 95px;">STATUS</th>
+              <th style="border: 1px solid #000000; text-align: left; width: 250px;">NAMA GURU</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 100px;">STATUS</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">HADIR</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">IZIN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">SAKIT</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 90px;">TOTAL SESI</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 100px;">% KEHADIRAN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 140px;">KETERANGAN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teacherRowsHtml}
+          </tbody>
+          <tfoot>
+            <tr style="background-color: #E2E8F0; font-weight: bold; height: 32px;">
+              <td colspan="3" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL REKAPITULASI:</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #15803D;">${totalMonthlyHadir}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #B45309;">${totalMonthlyIzin}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #B91C1C;">${totalMonthlySakit}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">${totalMonthlySesi}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">${averageMonthlyAttendance}%</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">-</td>
+            </tr>
+            <tr><td colspan="9" style="height: 25px;"></td></tr>
+            <tr>
+              <td colspan="4" style="text-align: center; font-size: 11pt;">
+                Mengetahui,<br>
+                <b>Kepala SMP IT Annur Abhari</b><br><br><br><br>
+                <u>___________________________</u>
+              </td>
+              <td></td>
+              <td colspan="4" style="text-align: center; font-size: 11pt;">
+                Banyumulek, ${todayStr}<br>
+                <b>Petugas Kurikulum / Kepegawaian</b><br><br><br><br>
+                <u>___________________________</u>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Rekap_Total_Bulanan_Guru_${selectedRekapMonth}_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showNotification(`Laporan Excel Rekap Bulanan (${periodLabel}) berhasil diunduh!`, 'success');
+  };
+
+  const exportMonthlyToCSV = () => {
+    let csv = "\uFEFF"; // UTF-8 BOM
+    csv += "No;Nama Guru;Status;Hadir (Sesi);Izin (Sesi);Sakit (Sesi);Total Sesi;Persentase Kehadiran;Evaluasi Disiplin\r\n";
+    monthlyTeacherSummary.forEach((row, idx) => {
+      csv += `${idx + 1};"${row.name}";"${row.status}";"${row.hadir}";"${row.izin}";"${row.sakit}";"${row.total}";"${row.persentase}%";"${row.evaluasi}"\r\n`;
+    });
+    csv += `TOTAL;;;${totalMonthlyHadir};${totalMonthlyIzin};${totalMonthlySakit};${totalMonthlySesi};${averageMonthlyAttendance}%;-\r\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Rekap_Total_Bulanan_Guru_${selectedRekapMonth}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showNotification('File CSV Rekap Bulanan Guru berhasil diunduh!', 'success');
+  };
+
+  const exportToExcel = () => {
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const totalRekap = filteredAttendances.length;
+    const totalHadir = filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length;
+    const totalIzin = filteredAttendances.filter(a => a.status === 'Izin').length;
+    const totalSakit = filteredAttendances.filter(a => a.status === 'Sakit').length;
+
+    // Bagian I: Tabel Rekapitulasi Bulanan Per Guru
+    let monthlyRowsHtml = '';
+    monthlyTeacherSummary.forEach((row, idx) => {
+      const evalBg = row.total === 0 ? '#F3F4F6' : row.persentase >= 90 ? '#DCFCE7' : row.persentase >= 75 ? '#EFF6FF' : '#FEF3C7';
+      const evalColor = row.total === 0 ? '#6B7280' : row.persentase >= 90 ? '#15803D' : row.persentase >= 75 ? '#1D4ED8' : '#B45309';
+
+      monthlyRowsHtml += `
+        <tr style="height: 26px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${idx + 1}</td>
+          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.name}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.status}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #15803D; font-size: 10pt;">${row.hadir}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B45309; font-size: 10pt;">${row.izin}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B91C1C; font-size: 10pt;">${row.sakit}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.total}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.persentase}%</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 9pt; font-weight: bold; background-color: ${evalBg}; color: ${evalColor};">${row.evaluasi}</td>
+        </tr>
+      `;
+    });
+
+    // Bagian II: Rincian Log Presensi Harian
+    let tableRows = '';
+    filteredAttendances.forEach((row, idx) => {
+      const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
+      const statusText = row.status || 'Hadir';
+      const statusBg = statusText === 'Hadir' ? '#DCFCE7' : statusText === 'Izin' ? '#FEF3C7' : '#FEE2E2';
+      const statusColor = statusText === 'Hadir' ? '#15803D' : statusText === 'Izin' ? '#B45309' : '#B91C1C';
+      
+      tableRows += `
+        <tr style="height: 28px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${idx + 1}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.date || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt; font-family: monospace;">${row.time || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${meetingNum}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; background-color: ${statusBg}; color: ${statusColor}; font-size: 10pt;">${statusText}</td>
+          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.teacherName || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.teacherKelas || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.teacherSubject || '-'}</td>
+          <td style="text-align: left; border: 1px solid #D1D5DB; font-size: 10pt;">${row.note || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.photoUrl ? 'Terverifikasi' : 'Tanpa Foto'}</td>
+        </tr>
+      `;
+    });
+
+    if (filteredAttendances.length === 0) {
+      tableRows = `
+        <tr>
+          <td colspan="10" style="text-align: center; padding: 20px; border: 1px solid #D1D5DB; color: #6B7280; font-style: italic;">
+            Belum ada catatan log absensi pada filter ini.
+          </td>
+        </tr>
+      `;
+    }
+
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Rekap Presensi Lengkap</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; }
+          table { border-collapse: collapse; width: 100%; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <!-- KOP SURAT SEKOLAH -->
+          <tr>
+            <td colspan="10" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
+              YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
+            </td>
+          </tr>
+          <tr>
+            <td colspan="10" style="text-align: center; font-size: 18pt; font-weight: bold; color: #1E40AF;">
+              SMP IT ANNUR ABHARI
+            </td>
+          </tr>
+          <tr>
+            <td colspan="10" style="text-align: center; font-size: 10pt; color: #4B5563;">
+              Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
+            </td>
+          </tr>
+          <tr>
+            <td colspan="10" style="text-align: center; font-size: 14pt; font-weight: bold; padding: 8px 0; border-top: 2px solid #1E3A8A; border-bottom: 2px solid #1E3A8A;">
+              LAPORAN REKAPITULASI PRESENSI KEHADIRAN GURU
+            </td>
+          </tr>
+          <tr>
+            <td colspan="10" style="text-align: left; font-size: 10pt; color: #374151; padding: 6px 0;">
+              <b>Tanggal Laporan:</b> ${todayStr} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Periode Bulan:</b> ${formatMonthYear(selectedRekapMonth)} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Rekap:</b> ${totalRekap} Data &nbsp;&nbsp;|&nbsp;&nbsp; <b>Hadir:</b> ${totalHadir} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Izin:</b> ${totalIzin} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Sakit:</b> ${totalSakit}
+            </td>
+          </tr>
+          <tr><td colspan="10" style="height: 15px;"></td></tr>
+
+          <!-- SECTION 1: REKAP BULANAN PER GURU -->
+          <tr>
+            <td colspan="10" style="background-color: #1E3A8A; color: #FFFFFF; font-weight: bold; font-size: 12pt; padding: 6px 10px;">
+              BAGIAN I: REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU (${formatMonthYear(selectedRekapMonth)})
+            </td>
+          </tr>
+          <thead>
+            <tr style="background-color: #2563EB; color: #FFFFFF; font-weight: bold; height: 32px;">
+              <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
               <th style="border: 1px solid #000000; text-align: left; width: 240px;">NAMA GURU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 170px;">KELAS</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 170px;">MATA PELAJARAN</th>
-              <th style="border: 1px solid #000000; text-align: left; width: 200px;">KETERANGAN</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 120px;">FOTO BUKTI</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 100px;">STATUS</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 70px;">HADIR</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 70px;">IZIN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 70px;">SAKIT</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 85px;">TOTAL SESI</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 95px;">% HADIR</th>
+              <th colspan="2" style="border: 1px solid #000000; text-align: center; width: 180px;">KETERANGAN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthlyRowsHtml}
+            <tr style="background-color: #E2E8F0; font-weight: bold; height: 30px;">
+              <td colspan="3" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL:</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #15803D;">${totalMonthlyHadir}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #B45309;">${totalMonthlyIzin}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center; color: #B91C1C;">${totalMonthlySakit}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">${totalMonthlySesi}</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">${averageMonthlyAttendance}%</td>
+              <td colspan="2" style="border: 1px solid #94A3B8; text-align: center;">-</td>
+            </tr>
+          </tbody>
+
+          <tr><td colspan="10" style="height: 20px;"></td></tr>
+
+          <!-- SECTION 2: RINCIAN LOG PRESENSI HARIAN -->
+          <tr>
+            <td colspan="10" style="background-color: #1E3A8A; color: #FFFFFF; font-weight: bold; font-size: 12pt; padding: 6px 10px;">
+              BAGIAN II: RINCIAN LOG PRESENSI HARIAN
+            </td>
+          </tr>
+          <thead>
+            <tr style="background-color: #1E40AF; color: #FFFFFF; font-weight: bold; height: 34px;">
+              <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 100px;">TANGGAL</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">WAKTU</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 60px;">SESI</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 90px;">STATUS</th>
+              <th style="border: 1px solid #000000; text-align: left; width: 220px;">NAMA GURU</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 140px;">KELAS</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 160px;">MATA PELAJARAN</th>
+              <th style="border: 1px solid #000000; text-align: left; width: 180px;">KETERANGAN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 110px;">FOTO BUKTI</th>
             </tr>
           </thead>
           <tbody>
@@ -1008,7 +1368,7 @@ export default function AplikasiGuru() {
           <!-- RINGKASAN FOOTER -->
           <tfoot>
             <tr style="background-color: #E2E8F0; font-weight: bold; height: 30px;">
-              <td colspan="4" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL KEHADIRAN:</td>
+              <td colspan="4" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL LOG:</td>
               <td colspan="6" style="border: 1px solid #94A3B8; text-align: left; padding-left: 10px;">
                 Hadir: ${totalHadir} | Izin: ${totalIzin} | Sakit: ${totalSakit} | Total: ${totalRekap}
               </td>
@@ -1019,14 +1379,12 @@ export default function AplikasiGuru() {
                 Mengetahui,<br>
                 <b>Kepala SMP IT Annur Abhari</b><br><br><br><br>
                 <u>___________________________</u><br>
-
               </td>
-              <td></td>
+              <td colspan="2"></td>
               <td colspan="4" style="text-align: center; font-size: 11pt;">
                 Dicetak pada: ${todayStr}<br>
                 <b>Petugas Piket / Kurikulum</b><br><br><br><br>
                 <u>___________________________</u><br>
-
               </td>
             </tr>
           </tfoot>
@@ -1044,7 +1402,7 @@ export default function AplikasiGuru() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showNotification('Laporan Excel rapi (.xls) berhasil diunduh!', 'success');
+    showNotification('Laporan Excel Lengkap (.xls) berhasil diunduh!', 'success');
   };
 
   const exportToCSV = () => {
@@ -1071,14 +1429,7 @@ export default function AplikasiGuru() {
     handlePrintRekapPdf();
   };
 
-  const filteredTeachers = teachers.filter(t => {
-    const term = teacherSearch.toLowerCase();
-    return (
-      (t.name && t.name.toLowerCase().includes(term)) ||
-      (t.kelas && t.kelas.toLowerCase().includes(term)) ||
-      (t.subject && t.subject.toLowerCase().includes(term))
-    );
-  });
+  const filteredTeachers = teachers;
 
   // JIKA DALAM MODE PORTAL GURU (HASIL SCAN QR DI SMARTPHONE GURU)
   if (viewMode === 'presensi_guru') {
@@ -1278,17 +1629,7 @@ export default function AplikasiGuru() {
                 <h1 className="text-3xl font-bold text-gray-800">Manajemen Data Guru</h1>
                 <p className="text-gray-500 text-sm">Kelola data tenaga pendidik SMP IT Annur Abhari.</p>
               </div>
-              <div className="flex items-center space-x-3 mt-4 md:mt-0 w-full md:w-auto">
-                <div className="relative flex-1 md:w-72">
-                  <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Cari nama, Kelas, mapel..."
-                    value={teacherSearch}
-                    onChange={(e) => setTeacherSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
+              <div className="flex items-center space-x-3 mt-4 md:mt-0">
                 {teachers.length > 0 && (
                   <button
                     onClick={handleClearAllTeachers}
@@ -1347,7 +1688,7 @@ export default function AplikasiGuru() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
-                  {filteredTeachers.map(t => (
+                  {teachers.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition">
                       <td className="p-4 font-bold text-gray-800">{t.name}</td>
                       <td className="p-4">
@@ -1371,18 +1712,16 @@ export default function AplikasiGuru() {
                       </td>
                     </tr>
                   ))}
-                  {filteredTeachers.length === 0 && (
+                  {teachers.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-10 text-center text-gray-500">
+                      <td colSpan={4} className="p-10 text-center text-gray-500">
                         <div className="max-w-md mx-auto space-y-2">
                           <Users size={40} className="mx-auto text-blue-500/60 mb-2" />
                           <p className="font-bold text-gray-800 text-base">
-                            {teachers.length === 0 ? 'Daftar Guru Masih Kosong' : 'Guru Tidak Ditemukan'}
+                            Daftar Guru Masih Kosong
                           </p>
                           <p className="text-xs text-gray-500 leading-relaxed">
-                            {teachers.length === 0 
-                              ? 'Silakan gunakan formulir di atas untuk mendaftarkan nama guru, Kelas, mata pelajaran, dan data kontak guru mandiri.'
-                              : 'Tidak ada data guru yang cocok dengan kata kunci pencarian Anda.'}
+                            Silakan gunakan formulir di atas untuk mendaftarkan nama lengkap, status, dan kontak guru.
                           </p>
                         </div>
                       </td>
@@ -1944,96 +2283,173 @@ export default function AplikasiGuru() {
         {/* REKAP ABSENSI TAB */}
         {activeTab === 'attendance' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center print:hidden">
+            {/* Header Rekapitulasi */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center print:hidden gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Rekapitulasi Absensi</h1>
-                <p className="text-gray-500 text-sm">Daftar rekaman kehadiran guru lengkap dengan status dan foto bukti presensi.</p>
+                <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2.5">
+                  <CalendarCheck className="text-blue-600" size={28} />
+                  <span>Rekapitulasi Absensi Guru</span>
+                </h1>
+                <p className="text-gray-500 text-sm mt-0.5">
+                  Rekapitulasi total kehadiran bulanan per guru dan rincian riwayat presensi harian SMP IT Annur Abhari.
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2.5 mt-4 md:mt-0">
+              <div className="flex flex-wrap gap-2">
                 <button 
                   onClick={exportToExcel} 
-                  title="Unduh file spreadsheet Excel rapi dengan kop surat dan styling resmi"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl flex items-center space-x-2 shadow-xs transition text-xs font-bold"
+                  title="Unduh file spreadsheet Excel lengkap (Rekap Bulanan + Log Harian)"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <Download size={16} /> <span>Unduh Excel (.xls)</span>
+                  <Download size={15} /> <span>Unduh Excel (.xls)</span>
+                </button>
+                <button 
+                  onClick={exportMonthlyRecapExcel} 
+                  title="Unduh file Excel khusus tabel rekap total bulanan per guru"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
+                >
+                  <BarChart3 size={15} /> <span>Excel Rekap Bulanan</span>
                 </button>
                 <button 
                   onClick={exportToCSV} 
                   title="Unduh file format CSV UTF-8"
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-2 rounded-xl flex items-center space-x-2 shadow-xs transition text-xs font-bold"
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <FileText size={16} /> <span>Unduh CSV</span>
+                  <FileText size={15} /> <span>CSV</span>
                 </button>
                 <button 
                   onClick={handlePrintRekapPdf} 
                   title="Cetak langsung atau simpan sebagai PDF A4 resmi"
-                  className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-xl flex items-center space-x-2 shadow-xs transition text-xs font-bold"
+                  className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <Printer size={16} /> <span>Cetak Laporan PDF</span>
+                  <Printer size={15} /> <span>Cetak Laporan PDF</span>
                 </button>
               </div>
             </div>
 
-            {/* Filter Controls */}
-            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs print:hidden flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Filter Bulan</label>
-                <select 
-                  value={filterMonth} 
-                  onChange={(e) => setFilterMonth(e.target.value)} 
-                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="Semua">Semua Bulan</option>
-                  {Array.from(new Set(attendances.map(a => {
-                    const parts = a.date ? a.date.split('/') : [];
-                    return parts.length === 3 ? `${parts[1]}-${parts[2]}` : null;
-                  }).filter(Boolean))).sort().map(monthYear => (
-                    <option key={monthYear} value={monthYear}>{monthYear}</option>
-                  ))}
-                </select>
+            {/* Filter & View Mode Controls */}
+            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs print:hidden space-y-3.5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers size={14} className="text-blue-600" /> Mode Tampilan Tabel:
+                </span>
+                <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-medium w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setRekapTabMode('all')}
+                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg transition ${
+                      rekapTabMode === 'all' ? 'bg-white text-blue-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Semua Tabel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRekapTabMode('monthly')}
+                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg transition flex items-center justify-center gap-1 ${
+                      rekapTabMode === 'monthly' ? 'bg-white text-blue-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <BarChart3 size={13} />
+                    <span>Rekap Bulanan Guru</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRekapTabMode('daily')}
+                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg transition flex items-center justify-center gap-1 ${
+                      rekapTabMode === 'daily' ? 'bg-white text-blue-700 font-bold shadow-xs' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <FileText size={13} />
+                    <span>Log Harian</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Filter Guru</label>
-                <select 
-                  value={filterTeacher} 
-                  onChange={(e) => setFilterTeacher(e.target.value)} 
-                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="Semua">Semua Guru</option>
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                    <Calendar size={13} className="text-blue-600" />
+                    <span>Pilih Periode Bulan Rekapitulasi</span>
+                  </label>
+                  <select 
+                    value={selectedRekapMonth} 
+                    onChange={(e) => {
+                      setSelectedRekapMonth(e.target.value);
+                      setFilterMonth(e.target.value);
+                    }} 
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-800"
+                  >
+                    {availableMonthYears.map(my => (
+                      <option key={my} value={my}>
+                        {formatMonthYear(my)} {my === currentMonthYearKey ? ' (Bulan Berjalan)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                    <Users size={13} className="text-blue-600" />
+                    <span>Filter Guru (Untuk Rincian Log Harian)</span>
+                  </label>
+                  <select 
+                    value={filterTeacher} 
+                    onChange={(e) => setFilterTeacher(e.target.value)} 
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    <option value="Semua">Semua Guru ({teachers.length} terdaftar)</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Statistik Ringkas */}
+            {/* Statistik Ringkas Bulan Terpilih */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
               <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs">
-                <p className="text-xs text-gray-500 font-medium">Total Rekap</p>
-                <p className="text-xl font-bold text-gray-800">{filteredAttendances.length}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500 font-medium">Total Guru</p>
+                  <Users size={16} className="text-blue-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800 mt-1">{teachers.length}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Tenaga pendidik terdaftar</p>
               </div>
               <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100 shadow-xs">
-                <p className="text-xs text-emerald-700 font-medium">Hadir</p>
-                <p className="text-xl font-bold text-emerald-800">
-                  {filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-emerald-700 font-medium">Hadir Bulan Ini</p>
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                </div>
+                <p className="text-2xl font-bold text-emerald-800 mt-1">
+                  {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.hadir, 0)} Sesi
+                </p>
+                <p className="text-[11px] text-emerald-600 mt-0.5">
+                  Periode {formatMonthYear(selectedRekapMonth)}
                 </p>
               </div>
               <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-100 shadow-xs">
-                <p className="text-xs text-amber-700 font-medium">Izin</p>
-                <p className="text-xl font-bold text-amber-800">
-                  {filteredAttendances.filter(a => a.status === 'Izin').length}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-amber-700 font-medium">Izin Bulan Ini</p>
+                  <AlertCircle size={16} className="text-amber-600" />
+                </div>
+                <p className="text-2xl font-bold text-amber-800 mt-1">
+                  {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.izin, 0)} Sesi
                 </p>
+                <p className="text-[11px] text-amber-600 mt-0.5">Keterangan izin resmi</p>
               </div>
               <div className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-100 shadow-xs">
-                <p className="text-xs text-rose-700 font-medium">Sakit</p>
-                <p className="text-xl font-bold text-rose-800">
-                  {filteredAttendances.filter(a => a.status === 'Sakit').length}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-rose-700 font-medium">Sakit Bulan Ini</p>
+                  <XCircle size={16} className="text-rose-600" />
+                </div>
+                <p className="text-2xl font-bold text-rose-800 mt-1">
+                  {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.sakit, 0)} Sesi
                 </p>
+                <p className="text-[11px] text-rose-600 mt-0.5">Surat keterangan sakit</p>
               </div>
             </div>
             
-            <div className="rekap-print-content bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-none print:p-0">
+            <div className="rekap-print-content space-y-6">
               {/* KOP SURAT RESMI UNTUK CETAK PDF */}
               <div className="hidden print:block mb-4">
                 <div className="text-center pb-2">
@@ -2056,21 +2472,205 @@ export default function AplikasiGuru() {
 
                 <div className="text-center mb-3">
                   <h2 className="text-base font-bold uppercase tracking-wider text-black underline">
-                    LAPORAN REKAPITULASI PRESENSI KEHADIRAN GURU
+                    LAPORAN REKAPITULASI PRESENSI & KEHADIRAN GURU
                   </h2>
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-700 mt-1 font-semibold">
+                    Periode: {formatMonthYear(selectedRekapMonth)}
+                  </p>
+                  <p className="text-[10px] text-gray-500">
                     Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                   <div className="flex justify-center space-x-6 text-xs text-gray-800 font-semibold mt-2 py-1 px-3 bg-gray-100 border border-gray-400 rounded">
-                    <span>Total Rekap: {filteredAttendances.length}</span>
-                    <span>Hadir: {filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length}</span>
-                    <span>Izin: {filteredAttendances.filter(a => a.status === 'Izin').length}</span>
-                    <span>Sakit: {filteredAttendances.filter(a => a.status === 'Sakit').length}</span>
+                    <span>Total Guru: {teachers.length}</span>
+                    <span>Total Hadir: {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.hadir, 0)}</span>
+                    <span>Total Izin: {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.izin, 0)}</span>
+                    <span>Total Sakit: {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.sakit, 0)}</span>
                   </div>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+
+              {/* ========================================================= */}
+              {/* TABEL 1: REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU   */}
+              {/* ========================================================= */}
+              {(rekapTabMode === 'all' || rekapTabMode === 'monthly') && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-black print:rounded-none">
+                  <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50/70 print:bg-white print:border-b-2 print:border-black">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg print:hidden">
+                          <BarChart3 size={18} />
+                        </span>
+                        <h3 className="text-base font-bold text-gray-800 print:text-black uppercase tracking-wide">
+                          Tabel Rekapitulasi Total Kehadiran Bulanan Per Guru
+                        </h3>
+                      </div>
+                      <p className="text-xs text-gray-500 print:text-gray-700 mt-0.5">
+                        Masing-masing guru memiliki jumlah total presensi sendiri dalam periode {formatMonthYear(selectedRekapMonth)}.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto print:hidden">
+                      <span className="px-3 py-1 bg-blue-50 text-blue-800 text-xs font-bold rounded-full border border-blue-200">
+                        Periode: {formatMonthYear(selectedRekapMonth)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={exportMonthlyRecapExcel}
+                        title="Unduh rekap bulanan ke Excel"
+                        className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                      >
+                        <Download size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-gray-50 text-gray-700 text-xs font-bold uppercase border-b print:bg-gray-100 print:text-black print:border-black">
+                        <tr>
+                          <th className="p-3 text-center w-12 border-b print:border print:border-black">No</th>
+                          <th className="p-3 border-b print:border print:border-black">Nama Guru</th>
+                          <th className="p-3 text-center border-b print:border print:border-black">Status</th>
+                          <th className="p-3 text-center border-b bg-emerald-50/50 print:bg-white print:border print:border-black text-emerald-800 print:text-black">Hadir</th>
+                          <th className="p-3 text-center border-b bg-amber-50/50 print:bg-white print:border print:border-black text-amber-800 print:text-black">Izin</th>
+                          <th className="p-3 text-center border-b bg-rose-50/50 print:bg-white print:border print:border-black text-rose-800 print:text-black">Sakit</th>
+                          <th className="p-3 text-center border-b bg-blue-50/50 print:bg-white print:border print:border-black text-blue-900 print:text-black font-bold">Total Sesi</th>
+                          <th className="p-3 text-center border-b print:border print:border-black">% Kehadiran</th>
+                          <th className="p-3 text-center border-b print:border print:border-black">Evaluasi</th>
+                          <th className="p-3 text-center border-b hidden print:table-cell print:border print:border-black w-24">Paraf Guru</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-sm print:divide-black">
+                        {monthlyTeacherSummary.map((item, idx) => (
+                          <tr key={item.teacherId} className="hover:bg-gray-50/80 transition print:hover:bg-white">
+                            <td className="p-3 text-center text-xs font-semibold text-gray-500 print:text-black print:border print:border-black">
+                              {idx + 1}
+                            </td>
+                            <td className="p-3 font-bold text-gray-800 print:text-black print:border print:border-black whitespace-nowrap">
+                              {item.teacherName}
+                            </td>
+                            <td className="p-3 text-center print:border print:border-black whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200 print:border-black print:bg-white print:text-black">
+                                {item.status}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center font-bold text-emerald-700 bg-emerald-50/30 print:bg-white print:text-black print:border print:border-black">
+                              {item.hadir}
+                            </td>
+                            <td className="p-3 text-center font-bold text-amber-700 bg-amber-50/30 print:bg-white print:text-black print:border print:border-black">
+                              {item.izin}
+                            </td>
+                            <td className="p-3 text-center font-bold text-rose-700 bg-rose-50/30 print:bg-white print:text-black print:border print:border-black">
+                              {item.sakit}
+                            </td>
+                            <td className="p-3 text-center font-extrabold text-blue-900 bg-blue-50/30 print:bg-white print:text-black print:border print:border-black">
+                              {item.total}
+                            </td>
+                            <td className="p-3 text-center print:border print:border-black">
+                              <div className="flex items-center justify-center space-x-2">
+                                <span className="font-bold text-xs text-gray-800 print:text-black">
+                                  {item.rate}%
+                                </span>
+                                <div className="w-12 bg-gray-200 rounded-full h-1.5 overflow-hidden print:hidden hidden sm:block">
+                                  <div 
+                                    className={`h-full rounded-full ${
+                                      item.rate >= 90 ? 'bg-emerald-500' :
+                                      item.rate >= 75 ? 'bg-blue-500' :
+                                      item.rate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(item.rate, 100)}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 text-center print:border print:border-black whitespace-nowrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-block ${
+                                item.eval === 'Sangat Baik' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                item.eval === 'Baik' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                item.eval === 'Cukup' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                item.eval === 'Kurang' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                                'bg-gray-100 text-gray-600 border border-gray-200'
+                              } print:border-black print:bg-white print:text-black`}>
+                                {item.eval}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center hidden print:table-cell print:border print:border-black">
+                              <div className="h-6"></div>
+                            </td>
+                          </tr>
+                        ))}
+                        {monthlyTeacherSummary.length === 0 && (
+                          <tr>
+                            <td colSpan={10} className="p-8 text-center text-gray-400">
+                              Belum ada data guru terdaftar.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {monthlyTeacherSummary.length > 0 && (
+                        <tfoot className="bg-slate-100/80 font-bold text-xs uppercase border-t-2 border-gray-300 print:bg-gray-100 print:border-black text-gray-800 print:text-black">
+                          <tr>
+                            <td colSpan={3} className="p-3 text-right print:border print:border-black">
+                              TOTAL SELURUH GURU ({monthlyTeacherSummary.length} Orang):
+                            </td>
+                            <td className="p-3 text-center text-emerald-800 print:text-black print:border print:border-black font-extrabold text-sm">
+                              {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.hadir, 0)}
+                            </td>
+                            <td className="p-3 text-center text-amber-800 print:text-black print:border print:border-black font-extrabold text-sm">
+                              {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.izin, 0)}
+                            </td>
+                            <td className="p-3 text-center text-rose-800 print:text-black print:border print:border-black font-extrabold text-sm">
+                              {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.sakit, 0)}
+                            </td>
+                            <td className="p-3 text-center text-blue-900 print:text-black print:border print:border-black font-extrabold text-sm">
+                              {monthlyTeacherSummary.reduce((acc, curr) => acc + curr.total, 0)}
+                            </td>
+                            <td className="p-3 text-center print:border print:border-black font-extrabold">
+                              {(() => {
+                                const totalSesi = monthlyTeacherSummary.reduce((acc, curr) => acc + curr.total, 0);
+                                const totalHadir = monthlyTeacherSummary.reduce((acc, curr) => acc + curr.hadir, 0);
+                                return totalSesi > 0 ? `${Math.round((totalHadir / totalSesi) * 100)}%` : '0%';
+                              })()}
+                            </td>
+                            <td className="p-3 text-center text-gray-600 print:text-black print:border print:border-black">
+                              Rata-rata Bulan Ini
+                            </td>
+                            <td className="hidden print:table-cell print:border print:border-black"></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* TABEL 2: RINCIAN LOG PRESENSI HARIAN                      */}
+              {/* ========================================================= */}
+              {(rekapTabMode === 'all' || rekapTabMode === 'daily') && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-black print:rounded-none">
+                  <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50/70 print:bg-white print:border-b-2 print:border-black">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg print:hidden">
+                          <FileText size={18} />
+                        </span>
+                        <h3 className="text-base font-bold text-gray-800 print:text-black uppercase tracking-wide">
+                          Rincian Riwayat Log Presensi Harian
+                        </h3>
+                      </div>
+                      <p className="text-xs text-gray-500 print:text-gray-700 mt-0.5">
+                        Log rekaman kehadiran guru per sesi dengan rincian kelas, mapel, dan foto bukti presensi.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto print:hidden">
+                      <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                        {filteredAttendances.length} Baris Log
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
                   <thead className="bg-gray-50 text-gray-700 border-b print:bg-gray-100 text-xs uppercase font-bold tracking-wider">
                     <tr>
                       <th className="p-3 border-b text-center w-12 print:border-gray-700 print:text-black">No</th>
@@ -2173,6 +2773,8 @@ export default function AplikasiGuru() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
 
               {/* TANDA TANGAN RESMI UNTUK CETAK PDF */}
               <div className="hidden print:block mt-8 pt-4 print:break-inside-avoid">
