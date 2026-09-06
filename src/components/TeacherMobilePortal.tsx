@@ -38,8 +38,8 @@ interface TeacherMobilePortalProps {
     note: string;
     photoUrl: string | null;
     manualName?: string;
-    manualNip?: string;
-    manualSubject?: string;
+    selectedKelas?: string;
+    selectedSubject?: string;
   }) => Promise<{ success: boolean; message: string; receipt?: any }>;
   onSwitchToAdmin: () => void;
 }
@@ -55,8 +55,8 @@ export default function TeacherMobilePortal({
     return teachers.length > 0 ? 'select' : 'manual';
   });
   const [manualName, setManualName] = useState('');
-  const [manualNip, setManualNip] = useState('');
-  const [manualSubject, setManualSubject] = useState('');
+  const [selectedKelas, setSelectedKelas] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
 
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState('1');
@@ -208,8 +208,23 @@ export default function TeacherMobilePortal({
       }
     }
 
-    if (status === 'Hadir' && !capturedPhoto) {
+    if (!capturedPhoto) {
       setErrorMessage("Harap ambil foto selfie terlebih dahulu sebagai bukti kehadiran fisik Anda.");
+      return;
+    }
+
+    if (!selectedKelas) {
+      setErrorMessage("Harap pilih Kelas terlebih dahulu!");
+      return;
+    }
+
+    if (!selectedSubject.trim()) {
+      setErrorMessage("Harap isi Mata Pelajaran terlebih dahulu!");
+      return;
+    }
+
+    if (!note.trim()) {
+      setErrorMessage("Harap isi keterangan/catatan kehadiran Anda.");
       return;
     }
 
@@ -222,8 +237,8 @@ export default function TeacherMobilePortal({
         note: note.trim(),
         photoUrl: capturedPhoto,
         manualName: inputMode === 'manual' ? manualName.trim() : undefined,
-        manualNip: inputMode === 'manual' ? manualNip.trim() : undefined,
-        manualSubject: inputMode === 'manual' ? manualSubject.trim() : undefined
+        selectedKelas: selectedKelas.trim(),
+        selectedSubject: selectedSubject.trim()
       });
 
       if (res.success && res.receipt) {
@@ -336,7 +351,7 @@ export default function TeacherMobilePortal({
                   <span className="font-bold text-slate-800 text-sm text-right">{submittedReceipt.teacherName}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                  <span className="text-slate-500">NIP</span>
+                  <span className="text-slate-500">Kelas</span>
                   <span className="font-mono font-semibold text-slate-700">{submittedReceipt.teacherNip || '-'}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-slate-200">
@@ -447,7 +462,7 @@ export default function TeacherMobilePortal({
                     <option value="">-- Sentuh untuk Memilih Nama Anda --</option>
                     {teachers.map(t => (
                       <option key={t.id} value={t.id}>
-                        {t.name} {t.subject ? `(${t.subject})` : ''}
+                        {t.name}
                       </option>
                     ))}
                   </select>
@@ -455,16 +470,6 @@ export default function TeacherMobilePortal({
                   {/* Info guru terpilih */}
                   {selectedTeacher && (
                     <div className="mt-2.5 p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">NIP:</span>
-                        <span className="font-mono font-bold text-slate-800">{selectedTeacher.nip || '-'}</span>
-                      </div>
-                      {selectedTeacher.subject && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Mata Pelajaran:</span>
-                          <span className="font-semibold text-blue-800">{selectedTeacher.subject}</span>
-                        </div>
-                      )}
                       {/* Status riwayat hari ini */}
                       <div className="pt-2 mt-2 border-t border-blue-200/60">
                         <span className="text-slate-500 block mb-1">Riwayat Sesi Hari Ini:</span>
@@ -513,27 +518,43 @@ export default function TeacherMobilePortal({
                       className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 font-medium"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">NIP / NUPTK</label>
-                      <input
-                        type="text"
-                        value={manualNip}
-                        onChange={(e) => setManualNip(e.target.value)}
-                        placeholder="NIP atau '-'"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Mata Pelajaran</label>
-                      <input
-                        type="text"
-                        value={manualSubject}
-                        onChange={(e) => setManualSubject(e.target.value)}
-                        placeholder="Contoh: Matematika"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
-                      />
-                    </div>
+                </div>
+              )}
+
+              {/* Kelas & Mata Pelajaran (Berlaku untuk semua mode) */}
+              {((inputMode === 'select' && selectedTeacherId) || (inputMode === 'manual')) && (
+                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                      Kelas <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={selectedKelas}
+                      onChange={(e) => setSelectedKelas(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
+                    >
+                      <option value="">-- Pilih Kelas --</option>
+                      <option value="VII Putra">VII Putra</option>
+                      <option value="VII Putri">VII Putri</option>
+                      <option value="VIII Putra">VIII Putra</option>
+                      <option value="VIII Putri">VIII Putri</option>
+                      <option value="IX Putra">IX Putra</option>
+                      <option value="IX Putri">IX Putri</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                      Mata Pelajaran <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      placeholder="Contoh: Matematika"
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-slate-50"
+                    />
                   </div>
                 </div>
               )}
@@ -614,7 +635,7 @@ export default function TeacherMobilePortal({
             <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 space-y-3">
               <div className="flex justify-between items-center">
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  4. Foto Selfie Kehadiran {status === 'Hadir' && <span className="text-rose-500">*</span>}
+                  4. Foto Selfie Kehadiran <span className="text-rose-500">*</span>
                 </label>
                 {capturedPhoto && (
                   <span className="text-[11px] font-bold text-emerald-600 flex items-center space-x-1">
@@ -735,7 +756,7 @@ export default function TeacherMobilePortal({
             {/* LANGKAH 5: CATATAN TAMBAHAN (OPSIONAL) */}
             <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 space-y-2">
               <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                5. Keterangan / Catatan <span className="text-slate-400 font-normal">(Opsional)</span>
+                5. Keterangan / Catatan <span className="text-rose-500">*</span>
               </label>
               <textarea
                 value={note}

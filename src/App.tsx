@@ -133,7 +133,7 @@ export default function AplikasiGuru() {
     return [];
   });
 
-  const [newTeacher, setNewTeacher] = useState({ name: '', nip: '', subject: '', status: 'PNS', phone: '', email: '' });
+  const [newTeacher, setNewTeacher] = useState({ name: '', kelas: '', subject: '', status: 'PNS', phone: '', email: '' });
   const [teacherSearch, setTeacherSearch] = useState('');
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
@@ -143,6 +143,12 @@ export default function AplikasiGuru() {
   // Status Kehadiran (Hadir / Izin / Sakit) & Catatan
   const [attendanceStatus, setAttendanceStatus] = useState<'Hadir' | 'Izin' | 'Sakit'>('Hadir');
   const [attendanceNote, setAttendanceNote] = useState('');
+  const [attendanceKelas, setAttendanceKelas] = useState('');
+  const [attendanceSubject, setAttendanceSubject] = useState('');
+
+  // Filter Rekap Absensi
+  const [filterMonth, setFilterMonth] = useState<string>('Semua');
+  const [filterTeacher, setFilterTeacher] = useState<string>('Semua');
 
   // Kamera & Foto Kehadiran
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -273,8 +279,8 @@ export default function AplikasiGuru() {
 
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTeacher.name || !newTeacher.nip) {
-      showNotification('Nama dan NIP guru wajib diisi!', 'error');
+    if (!newTeacher.name || !newTeacher.kelas) {
+      showNotification('Nama dan Kelas guru wajib diisi!', 'error');
       return;
     }
     const teacherData = {
@@ -293,7 +299,7 @@ export default function AplikasiGuru() {
       try { localStorage.setItem('smpit_teachers', JSON.stringify(updated)); } catch (e) {}
       return updated;
     });
-    setNewTeacher({ name: '', nip: '', subject: '', status: 'PNS', phone: '', email: '' });
+    setNewTeacher({ name: '', kelas: '', subject: '', status: 'PNS', phone: '', email: '' });
     showNotification('Data guru berhasil ditambahkan!', 'success');
   };
 
@@ -306,7 +312,7 @@ export default function AplikasiGuru() {
     if (!editingTeacher || !editingTeacher.id) return;
     const updatedData = {
       name: editingTeacher.name || '',
-      nip: editingTeacher.nip || '',
+      kelas: editingTeacher.kelas || '',
       subject: editingTeacher.subject || '',
       status: editingTeacher.status || 'PNS',
       phone: editingTeacher.phone || '',
@@ -584,20 +590,19 @@ export default function AplikasiGuru() {
     note: string;
     photoUrl: string | null;
     manualName?: string;
-    manualNip?: string;
-    manualSubject?: string;
+    selectedKelas?: string;
+    selectedSubject?: string;
   }) => {
     let teacher = teachers.find(t => t.id === data.teacherId);
     let teacherName = teacher ? teacher.name : (data.manualName || 'Guru SMP IT Annur Abhari').trim();
-    let teacherNip = teacher ? (teacher.nip || '-') : (data.manualNip?.trim() || '-');
+    let teacherKelas = data.selectedKelas?.trim() || '-';
+    let teacherSubject = data.selectedSubject?.trim() || '-';
     let teacherId = teacher ? teacher.id : ('teacher_manual_' + Date.now());
 
     // Jika guru baru diketik manual di portal, daftarkan otomatis ke database guru
     if (!teacher && data.manualName && data.manualName.trim()) {
       const newTeacherRecord = {
         name: data.manualName.trim(),
-        nip: data.manualNip?.trim() || '-',
-        subject: data.manualSubject?.trim() || 'Guru Pengajar',
         status: 'Aktif',
         createdAt: serverTimestamp()
       };
@@ -630,7 +635,8 @@ export default function AplikasiGuru() {
     const recordData = {
       teacherId: teacherId,
       teacherName: teacherName,
-      teacherNip: teacherNip || '-',
+      teacherKelas: teacherKelas || '-',
+      teacherSubject: teacherSubject || '-',
       meeting: cleanSelectedMeeting,
       status: data.status,
       note: data.note || '',
@@ -674,7 +680,7 @@ export default function AplikasiGuru() {
         message: 'Presensi berhasil direkam!',
         receipt: {
           teacherName: teacherName,
-          teacherNip: teacherNip || '-',
+          teacherKelas: teacherKelas || '-',
           meeting: cleanSelectedMeeting,
           status: data.status,
           date: todayStr,
@@ -701,6 +707,27 @@ export default function AplikasiGuru() {
       showNotification('Silakan pilih nama guru terlebih dahulu!', 'error');
       return;
     }
+
+    if (!attendanceKelas) {
+      showNotification('Harap pilih Kelas terlebih dahulu!', 'error');
+      return;
+    }
+
+    if (!attendanceSubject.trim()) {
+      showNotification('Harap isi Mata Pelajaran terlebih dahulu!', 'error');
+      return;
+    }
+
+    if (!capturedPhoto) {
+      showNotification('Harap ambil foto selfie bukti kehadiran terlebih dahulu!', 'error');
+      return;
+    }
+
+    if (!attendanceNote.trim()) {
+      showNotification('Harap isi keterangan/catatan kehadiran!', 'error');
+      return;
+    }
+
     const teacher = teachers.find(t => t.id === selectedTeacherId);
     if (!teacher) {
       showNotification('Data guru tidak ditemukan!', 'error');
@@ -727,7 +754,8 @@ export default function AplikasiGuru() {
     const recordData = {
       teacherId: teacher.id,
       teacherName: teacher.name,
-      teacherNip: teacher.nip,
+      teacherKelas: attendanceKelas,
+      teacherSubject: attendanceSubject.trim(),
       meeting: cleanSelectedMeeting,
       status: attendanceStatus,
       note: attendanceNote.trim(),
@@ -834,6 +862,33 @@ export default function AplikasiGuru() {
     showNotification(`Dokumen "${title}" berhasil dihapus.`, 'success');
   };
 
+  const filteredAttendances = attendances.filter(a => {
+    let matchMonth = true;
+    let matchTeacher = true;
+
+    if (filterMonth !== 'Semua') {
+      // a.date format is usually "DD/MM/YYYY" or "MM/DD/YYYY" depending on how it's saved.
+      // Let's assume standard JS locale date string.
+      // Let's just do a simple substring match on month/year if possible, or parse it.
+      // In earlier code: `date: now.toLocaleDateString('id-ID')` => "DD/MM/YYYY"
+      const dateParts = a.date ? a.date.split('/') : [];
+      if (dateParts.length === 3) {
+        const monthYear = `${dateParts[1]}-${dateParts[2]}`; // "MM-YYYY"
+        if (monthYear !== filterMonth) {
+          matchMonth = false;
+        }
+      }
+    }
+
+    if (filterTeacher !== 'Semua') {
+      if (a.teacherId !== filterTeacher) {
+        matchTeacher = false;
+      }
+    }
+
+    return matchMonth && matchTeacher;
+  });
+
   const exportToExcel = () => {
     const todayStr = new Date().toLocaleDateString('id-ID', {
       weekday: 'long',
@@ -841,13 +896,13 @@ export default function AplikasiGuru() {
       month: 'long',
       day: 'numeric'
     });
-    const totalRekap = attendances.length;
-    const totalHadir = attendances.filter(a => !a.status || a.status === 'Hadir').length;
-    const totalIzin = attendances.filter(a => a.status === 'Izin').length;
-    const totalSakit = attendances.filter(a => a.status === 'Sakit').length;
+    const totalRekap = filteredAttendances.length;
+    const totalHadir = filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length;
+    const totalIzin = filteredAttendances.filter(a => a.status === 'Izin').length;
+    const totalSakit = filteredAttendances.filter(a => a.status === 'Sakit').length;
 
     let tableRows = '';
-    attendances.forEach((row, idx) => {
+    filteredAttendances.forEach((row, idx) => {
       const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
       const statusText = row.status || 'Hadir';
       const statusBg = statusText === 'Hadir' ? '#DCFCE7' : statusText === 'Izin' ? '#FEF3C7' : '#FEE2E2';
@@ -861,17 +916,18 @@ export default function AplikasiGuru() {
           <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt; mso-number-format: '0';">${meetingNum}</td>
           <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; background-color: ${statusBg}; color: ${statusColor}; font-size: 11pt;">${statusText}</td>
           <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.teacherName || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt; mso-number-format: '\\@';">${row.teacherNip || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt; mso-number-format: '\\@';">${row.teacherKelas || '-'}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${row.teacherSubject || '-'}</td>
           <td style="text-align: left; border: 1px solid #D1D5DB; font-size: 11pt;">${row.note || '-'}</td>
           <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${row.photoUrl ? 'Terverifikasi' : 'Tanpa Foto'}</td>
         </tr>
       `;
     });
 
-    if (attendances.length === 0) {
+    if (filteredAttendances.length === 0) {
       tableRows = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 20px; border: 1px solid #D1D5DB; color: #6B7280; font-style: italic;">
+          <td colspan="10" style="text-align: center; padding: 20px; border: 1px solid #D1D5DB; color: #6B7280; font-style: italic;">
             Belum ada catatan absensi yang tersimpan di database.
           </td>
         </tr>
@@ -906,7 +962,7 @@ export default function AplikasiGuru() {
           <!-- KOP SURAT SEKOLAH -->
           <tr>
             <td colspan="9" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
-              YAYASAN PENDIDIKAN ISLAM ANNUR ABHARI
+              YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
             </td>
           </tr>
           <tr>
@@ -916,7 +972,7 @@ export default function AplikasiGuru() {
           </tr>
           <tr>
             <td colspan="9" style="text-align: center; font-size: 10pt; color: #4B5563;">
-              Alamat: Jl. Raya Pendidikan No. 12, Jawa Barat | NPSN: 69982341
+              Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
             </td>
           </tr>
           <tr>
@@ -940,7 +996,8 @@ export default function AplikasiGuru() {
               <th style="border: 1px solid #000000; text-align: center; width: 65px;">SESI</th>
               <th style="border: 1px solid #000000; text-align: center; width: 95px;">STATUS</th>
               <th style="border: 1px solid #000000; text-align: left; width: 240px;">NAMA GURU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 170px;">NIP</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 170px;">KELAS</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 170px;">MATA PELAJARAN</th>
               <th style="border: 1px solid #000000; text-align: left; width: 200px;">KETERANGAN</th>
               <th style="border: 1px solid #000000; text-align: center; width: 120px;">FOTO BUKTI</th>
             </tr>
@@ -952,24 +1009,24 @@ export default function AplikasiGuru() {
           <tfoot>
             <tr style="background-color: #E2E8F0; font-weight: bold; height: 30px;">
               <td colspan="4" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL KEHADIRAN:</td>
-              <td colspan="5" style="border: 1px solid #94A3B8; text-align: left; padding-left: 10px;">
+              <td colspan="6" style="border: 1px solid #94A3B8; text-align: left; padding-left: 10px;">
                 Hadir: ${totalHadir} | Izin: ${totalIzin} | Sakit: ${totalSakit} | Total: ${totalRekap}
               </td>
             </tr>
-            <tr><td colspan="9" style="height: 25px;"></td></tr>
+            <tr><td colspan="10" style="height: 25px;"></td></tr>
             <tr>
               <td colspan="4" style="text-align: center; font-size: 11pt;">
                 Mengetahui,<br>
                 <b>Kepala SMP IT Annur Abhari</b><br><br><br><br>
                 <u>___________________________</u><br>
-                NIP. -
+
               </td>
               <td></td>
               <td colspan="4" style="text-align: center; font-size: 11pt;">
                 Dicetak pada: ${todayStr}<br>
                 <b>Petugas Piket / Kurikulum</b><br><br><br><br>
                 <u>___________________________</u><br>
-                NIP. -
+
               </td>
             </tr>
           </tfoot>
@@ -992,11 +1049,11 @@ export default function AplikasiGuru() {
 
   const exportToCSV = () => {
     let csv = "\uFEFF"; // UTF-8 BOM agar rapi di Microsoft Excel Indonesia
-    csv += "No;Tanggal;Waktu;Sesi;Status;Nama Guru;NIP;Keterangan;Foto Bukti\r\n";
-    attendances.forEach((row, idx) => {
+    csv += "No;Tanggal;Waktu;Sesi;Status;Nama Guru;Kelas;Mata Pelajaran;Keterangan;Foto Bukti\r\n";
+    filteredAttendances.forEach((row, idx) => {
       const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
       const cleanNote = (row.note || '-').replace(/;/g, ',').replace(/\r?\n/g, ' ');
-      csv += `${idx + 1};"${row.date || ''}";"${row.time || ''}";"${meetingNum}";"${row.status || 'Hadir'}";"${row.teacherName || ''}";"${row.teacherNip || ''}";"${cleanNote}";"${row.photoUrl ? 'Ada Foto' : 'Tanpa Foto'}"\r\n`;
+      csv += `${idx + 1};"${row.date || ''}";"${row.time || ''}";"${meetingNum}";"${row.status || 'Hadir'}";"${row.teacherName || ''}";"${row.teacherKelas || ''}";"${row.teacherSubject || ''}";"${cleanNote}";"${row.photoUrl ? 'Ada Foto' : 'Tanpa Foto'}"\r\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1018,7 +1075,7 @@ export default function AplikasiGuru() {
     const term = teacherSearch.toLowerCase();
     return (
       (t.name && t.name.toLowerCase().includes(term)) ||
-      (t.nip && t.nip.toLowerCase().includes(term)) ||
+      (t.kelas && t.kelas.toLowerCase().includes(term)) ||
       (t.subject && t.subject.toLowerCase().includes(term))
     );
   });
@@ -1226,7 +1283,7 @@ export default function AplikasiGuru() {
                   <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                   <input
                     type="text"
-                    placeholder="Cari nama, NIP, mapel..."
+                    placeholder="Cari nama, Kelas, mapel..."
                     value={teacherSearch}
                     onChange={(e) => setTeacherSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -1248,18 +1305,10 @@ export default function AplikasiGuru() {
             {/* Form Tambah Guru */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Tambah Data Guru Baru</h3>
-              <form onSubmit={handleAddTeacher} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+              <form onSubmit={handleAddTeacher} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-1">
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Lengkap & Gelar *</label>
                   <input type="text" required value={newTeacher.name} onChange={(e) => setNewTeacher({...newTeacher, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ahmad Fauzi, S.Pd." />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">NIP / NIPPPK *</label>
-                  <input type="text" required value={newTeacher.nip} onChange={(e) => setNewTeacher({...newTeacher, nip: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="19850123..." />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Mata Pelajaran</label>
-                  <input type="text" value={newTeacher.subject} onChange={(e) => setNewTeacher({...newTeacher, subject: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Matematika / IPA" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Status Kepegawaian</label>
@@ -1278,7 +1327,7 @@ export default function AplikasiGuru() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
                   <input type="email" value={newTeacher.email} onChange={(e) => setNewTeacher({...newTeacher, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="guru@sekolah.sch.id" />
                 </div>
-                <div className="md:col-span-3 flex justify-end mt-2">
+                <div className="md:col-span-4 flex justify-end mt-2">
                   <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2 text-sm font-semibold shadow-sm transition">
                     <Plus size={18} /> <span>Simpan Data Guru</span>
                   </button>
@@ -1292,8 +1341,6 @@ export default function AplikasiGuru() {
                 <thead className="bg-gray-50 text-gray-700 text-xs font-bold uppercase border-b">
                   <tr>
                     <th className="p-4">Nama Guru</th>
-                    <th className="p-4">NIP</th>
-                    <th className="p-4">Mapel</th>
                     <th className="p-4">Status</th>
                     <th className="p-4">Kontak</th>
                     <th className="p-4 text-center">Aksi</th>
@@ -1303,8 +1350,6 @@ export default function AplikasiGuru() {
                   {filteredTeachers.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition">
                       <td className="p-4 font-bold text-gray-800">{t.name}</td>
-                      <td className="p-4 text-gray-600 font-mono text-xs">{t.nip}</td>
-                      <td className="p-4 text-gray-600">{t.subject || '-'}</td>
                       <td className="p-4">
                         <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                           {t.status || 'PNS'}
@@ -1336,7 +1381,7 @@ export default function AplikasiGuru() {
                           </p>
                           <p className="text-xs text-gray-500 leading-relaxed">
                             {teachers.length === 0 
-                              ? 'Silakan gunakan formulir di atas untuk mendaftarkan nama guru, NIP, mata pelajaran, dan data kontak guru mandiri.'
+                              ? 'Silakan gunakan formulir di atas untuk mendaftarkan nama guru, Kelas, mata pelajaran, dan data kontak guru mandiri.'
                               : 'Tidak ada data guru yang cocok dengan kata kunci pencarian Anda.'}
                           </p>
                         </div>
@@ -1365,23 +1410,13 @@ export default function AplikasiGuru() {
                   <input type="text" required value={editingTeacher.name} onChange={(e) => setEditingTeacher({...editingTeacher, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">NIP</label>
-                  <input type="text" required value={editingTeacher.nip} onChange={(e) => setEditingTeacher({...editingTeacher, nip: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mata Pelajaran</label>
-                    <input type="text" value={editingTeacher.subject} onChange={(e) => setEditingTeacher({...editingTeacher, subject: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Status Kepegawaian</label>
-                    <select value={editingTeacher.status} onChange={(e) => setEditingTeacher({...editingTeacher, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                      <option value="PNS">PNS</option>
-                      <option value="PPPK">PPPK</option>
-                      <option value="GTY">GTY</option>
-                      <option value="Honorer">Honorer</option>
-                    </select>
-                  </div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Status Kepegawaian</label>
+                  <select value={editingTeacher.status} onChange={(e) => setEditingTeacher({...editingTeacher, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="PNS">PNS</option>
+                    <option value="PPPK">PPPK</option>
+                    <option value="GTY">GTY</option>
+                    <option value="Honorer">Honorer</option>
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1615,7 +1650,7 @@ export default function AplikasiGuru() {
                     >
                       <option value="">-- Pilih Nama Guru --</option>
                       {teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} (NIP: {t.nip})</option>
+                        <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1698,28 +1733,60 @@ export default function AplikasiGuru() {
                     </div>
                   </div>
 
-                  {/* Keterangan jika Izin atau Sakit */}
-                  {attendanceStatus !== 'Hadir' && (
-                    <div className="animate-fadeIn bg-amber-50/40 p-3 rounded-xl border border-amber-200">
+                  {/* Kelas dan Mata Pelajaran */}
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Keterangan / Alasan {attendanceStatus}:
+                        Kelas <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={attendanceKelas}
+                        onChange={(e) => setAttendanceKelas(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      >
+                        <option value="">-- Pilih --</option>
+                        <option value="VII Putra">VII Putra</option>
+                        <option value="VII Putri">VII Putri</option>
+                        <option value="VIII Putra">VIII Putra</option>
+                        <option value="VIII Putri">VIII Putri</option>
+                        <option value="IX Putra">IX Putra</option>
+                        <option value="IX Putri">IX Putri</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Mata Pelajaran <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
-                        value={attendanceNote}
-                        onChange={(e) => setAttendanceNote(e.target.value)}
-                        placeholder={`Contoh: Sedang sakit demam / Surat izin terlampir / Dinas luar...`}
-                        className="w-full px-3 py-2 border border-amber-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                        value={attendanceSubject}
+                        onChange={(e) => setAttendanceSubject(e.target.value)}
+                        placeholder="Contoh: Matematika"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                       />
                     </div>
-                  )}
+                  </div>
+
+                  {/* Keterangan / Catatan */}
+                  <div className="animate-fadeIn bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Keterangan / Catatan <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={attendanceNote}
+                      onChange={(e) => setAttendanceNote(e.target.value)}
+                      placeholder={attendanceStatus === 'Hadir' ? 'Contoh: Mengajar materi Bab 2 di kelas VIII-A' : `Contoh: Sedang sakit demam / Surat izin terlampir / Dinas luar...`}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    />
+                  </div>
 
                   {/* AKSES KAMERA UNTUK FOTO / SELFIE */}
                   <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50/70 space-y-3">
                     <div className="flex justify-between items-center">
                       <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center">
                         <Camera size={16} className="mr-1.5 text-blue-600" />
-                        Foto Bukti Kehadiran (Selfie)
+                        Foto Bukti Kehadiran (Selfie) <span className="text-rose-500 ml-1">*</span>
                       </label>
                       {capturedPhoto && (
                         <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center">
@@ -1907,28 +1974,61 @@ export default function AplikasiGuru() {
               </div>
             </div>
 
+            {/* Filter Controls */}
+            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs print:hidden flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Filter Bulan</label>
+                <select 
+                  value={filterMonth} 
+                  onChange={(e) => setFilterMonth(e.target.value)} 
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="Semua">Semua Bulan</option>
+                  {Array.from(new Set(attendances.map(a => {
+                    const parts = a.date ? a.date.split('/') : [];
+                    return parts.length === 3 ? `${parts[1]}-${parts[2]}` : null;
+                  }).filter(Boolean))).sort().map(monthYear => (
+                    <option key={monthYear} value={monthYear}>{monthYear}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Filter Guru</label>
+                <select 
+                  value={filterTeacher} 
+                  onChange={(e) => setFilterTeacher(e.target.value)} 
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="Semua">Semua Guru</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Statistik Ringkas */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
               <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs">
                 <p className="text-xs text-gray-500 font-medium">Total Rekap</p>
-                <p className="text-xl font-bold text-gray-800">{attendances.length}</p>
+                <p className="text-xl font-bold text-gray-800">{filteredAttendances.length}</p>
               </div>
               <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100 shadow-xs">
                 <p className="text-xs text-emerald-700 font-medium">Hadir</p>
                 <p className="text-xl font-bold text-emerald-800">
-                  {attendances.filter(a => !a.status || a.status === 'Hadir').length}
+                  {filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length}
                 </p>
               </div>
               <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-100 shadow-xs">
                 <p className="text-xs text-amber-700 font-medium">Izin</p>
                 <p className="text-xl font-bold text-amber-800">
-                  {attendances.filter(a => a.status === 'Izin').length}
+                  {filteredAttendances.filter(a => a.status === 'Izin').length}
                 </p>
               </div>
               <div className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-100 shadow-xs">
                 <p className="text-xs text-rose-700 font-medium">Sakit</p>
                 <p className="text-xl font-bold text-rose-800">
-                  {attendances.filter(a => a.status === 'Sakit').length}
+                  {filteredAttendances.filter(a => a.status === 'Sakit').length}
                 </p>
               </div>
             </div>
@@ -1938,16 +2038,16 @@ export default function AplikasiGuru() {
               <div className="hidden print:block mb-4">
                 <div className="text-center pb-2">
                   <h3 className="text-xs font-bold tracking-wider uppercase text-gray-800">
-                    YAYASAN PENDIDIKAN ISLAM ANNUR ABHARI
+                    YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
                   </h3>
                   <h1 className="text-2xl font-black tracking-tight text-blue-900 my-0.5">
                     SMP IT ANNUR ABHARI
                   </h1>
                   <p className="text-[11px] text-gray-600 font-medium">
-                    NPSN: 69982341 | Akreditasi: B | Telp: (021) 89012345 | Email: info@smpitannur.sch.id
+                    
                   </p>
                   <p className="text-[10px] text-gray-500">
-                    Alamat: Jl. Raya Pendidikan No. 12, Jawa Barat - Indonesia
+                    Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
                   </p>
                 </div>
                 {/* Garis Ganda Kop Surat */}
@@ -1962,10 +2062,10 @@ export default function AplikasiGuru() {
                     Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                   <div className="flex justify-center space-x-6 text-xs text-gray-800 font-semibold mt-2 py-1 px-3 bg-gray-100 border border-gray-400 rounded">
-                    <span>Total Rekap: {attendances.length}</span>
-                    <span>Hadir: {attendances.filter(a => !a.status || a.status === 'Hadir').length}</span>
-                    <span>Izin: {attendances.filter(a => a.status === 'Izin').length}</span>
-                    <span>Sakit: {attendances.filter(a => a.status === 'Sakit').length}</span>
+                    <span>Total Rekap: {filteredAttendances.length}</span>
+                    <span>Hadir: {filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length}</span>
+                    <span>Izin: {filteredAttendances.filter(a => a.status === 'Izin').length}</span>
+                    <span>Sakit: {filteredAttendances.filter(a => a.status === 'Sakit').length}</span>
                   </div>
                 </div>
               </div>
@@ -1978,14 +2078,15 @@ export default function AplikasiGuru() {
                       <th className="p-3 border-b text-center print:border-gray-700 print:text-black">Sesi</th>
                       <th className="p-3 border-b text-center print:border-gray-700 print:text-black">Status</th>
                       <th className="p-3 border-b print:border-gray-700 print:text-black">Nama Guru</th>
-                      <th className="p-3 border-b print:border-gray-700 print:text-black">NIP</th>
+                      <th className="p-3 border-b print:border-gray-700 print:text-black">Kelas</th>
+                      <th className="p-3 border-b print:border-gray-700 print:text-black">Mapel</th>
                       <th className="p-3 border-b print:border-gray-700 print:text-black">Keterangan</th>
                       <th className="p-3 border-b text-center print:border-gray-700 print:text-black">Foto Bukti</th>
                       <th className="p-3 border-b text-center print:hidden">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 print:divide-gray-400 text-sm">
-                    {attendances.map((a, idx) => {
+                    {filteredAttendances.map((a, idx) => {
                       const meetingNum = (a.meeting || '1').replace(/[^0-9]/g, '') || '1';
                       return (
                         <tr key={a.id} className="hover:bg-gray-50 print:hover:bg-white">
@@ -2019,7 +2120,8 @@ export default function AplikasiGuru() {
                             )}
                           </td>
                           <td className="p-3 text-gray-800 font-bold print:border-b whitespace-nowrap">{a.teacherName}</td>
-                          <td className="p-3 text-gray-600 print:border-b font-mono text-xs whitespace-nowrap">{a.teacherNip}</td>
+                          <td className="p-3 text-gray-600 print:border-b font-mono text-xs whitespace-nowrap">{a.teacherKelas}</td>
+                          <td className="p-3 text-gray-600 print:border-b text-xs whitespace-nowrap">{a.teacherSubject || '-'}</td>
                           <td className="p-3 text-gray-600 print:border-b text-xs max-w-xs">
                             {a.note ? (
                               <span className="italic bg-gray-50 px-2 py-0.5 rounded border border-gray-200 text-gray-700 print:border-none print:p-0">
@@ -2065,7 +2167,7 @@ export default function AplikasiGuru() {
                         </tr>
                       );
                     })}
-                    {attendances.length === 0 && (
+                    {filteredAttendances.length === 0 && (
                       <tr><td colSpan={9} className="p-8 text-center text-gray-400">Belum ada data kehadiran yang tercatat.</td></tr>
                     )}
                   </tbody>
@@ -2080,7 +2182,7 @@ export default function AplikasiGuru() {
                     <p className="font-bold text-sm">Kepala SMP IT Annur Abhari</p>
                     <div className="h-20"></div>
                     <p className="font-bold underline text-sm">___________________________</p>
-                    <p className="text-[11px] text-gray-600">NIP. -</p>
+
                   </div>
                   <div className="text-center">
                     <p className="font-medium">
@@ -2089,7 +2191,7 @@ export default function AplikasiGuru() {
                     <p className="font-bold text-sm">Petugas Presensi / Kurikulum</p>
                     <div className="h-20"></div>
                     <p className="font-bold underline text-sm">___________________________</p>
-                    <p className="text-[11px] text-gray-600">NIP. -</p>
+
                   </div>
                 </div>
               </div>
@@ -2207,7 +2309,7 @@ export default function AplikasiGuru() {
                     <QrCode size={26} />
                   </div>
                 </div>
-                <h3 className="text-xs font-bold tracking-widest uppercase text-blue-900">YAYASAN PENDIDIKAN ISLAM ANNUR ABHARI</h3>
+                <h3 className="text-xs font-bold tracking-widest uppercase text-blue-900">YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI</h3>
                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">SMP IT ANNUR ABHARI</h1>
                 <p className="text-[11px] text-gray-500 font-medium">SISTEM PRESENSI & KEHADIRAN GURU</p>
                 
@@ -2271,7 +2373,7 @@ export default function AplikasiGuru() {
                     <p className="font-bold text-gray-800">Kepala SMP IT Annur Abhari</p>
                     <div className="h-14"></div>
                     <p className="font-bold text-gray-900 underline">________________________</p>
-                    <p className="text-[10px] text-gray-500">NIP. -</p>
+
                   </div>
                   <div className="text-right">
                     <p className="font-medium">Dicetak Pada:</p>
