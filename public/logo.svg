@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="50%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#CA8A04" />
+    </linearGradient>
+    <linearGradient id="goldGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="50%" stop-color="#FACC15" />
+      <stop offset="100%" stop-color="#EAB308" />
+    </linearGradient>
+    <radialGradient id="centerGlow" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="85%" stop-color="#FAFAF9" />
+      <stop offset="100%" stop-color="#F5F5F4" />
+    </radialGradient>
+
+    <!-- Text Paths for circular school name and location -->
+    <!-- Top Arc: from left to right over top (radius 184) -->
+    <path id="topTextPath" d="M 66 250 A 184 184 0 0 1 434 250" fill="none" />
+    <!-- Bottom Arc: from left to right along bottom (radius 184) -->
+    <path id="bottomTextPath" d="M 74 250 A 176 176 0 0 0 426 250" fill="none" />
+  </defs>
+
+  <!-- 1. OUTER 8-POINTED STAR (RUB EL HIZB) -->
+  <!-- Base Outer Green Star -->
+  <g transform="translate(250, 250)">
+    <!-- Star 1 (Square at 0 deg) -->
+    <rect x="-228" y="-228" width="456" height="456" rx="6" fill="#0F5128" />
+    <!-- Star 2 (Square at 45 deg) -->
+    <rect x="-228" y="-228" width="456" height="456" rx="6" fill="#0F5128" transform="rotate(45)" />
+
+    <!-- Inner Gold Star Points Facets -->
+    <g stroke="#0F5128" stroke-width="4">
+      <polygon points="0,-218 64,-154 -64,-154" fill="url(#goldGrad)" />
+      <polygon points="0,218 64,154 -64,154" fill="url(#goldGrad)" />
+      <polygon points="-218,0 -154,-64 -154,64" fill="url(#goldGrad)" />
+      <polygon points="218,0 154,-64 154,64" fill="url(#goldGrad)" />
+      
+      <polygon points="-154,-154 -64,-154 -154,-64" fill="url(#goldGrad)" />
+      <polygon points="154,-154 64,-154 154,-64" fill="url(#goldGrad)" />
+      <polygon points="-154,154 -64,154 -154,64" fill="url(#goldGrad)" />
+      <polygon points="154,154 64,154 154,64" fill="url(#goldGrad)" />
+    </g>
+
+    <!-- Star facet corner triangles to give exact 8-point gold tips -->
+    <!-- Top point -->
+    <polygon points="0,-224 88,-136 -88,-136" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+    <!-- Bottom point -->
+    <polygon points="0,224 88,136 -88,136" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+    <!-- Left point -->
+    <polygon points="-224,0 -136,-88 -136,88" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+    <!-- Right point -->
+    <polygon points="224,0 136,-88 136,88" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+    <!-- Diagonal points (45 deg) -->
+    <g transform="rotate(45)">
+      <polygon points="0,-224 88,-136 -88,-136" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+      <polygon points="0,224 88,136 -88,136" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+      <polygon points="-224,0 -136,-88 -136,88" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+      <polygon points="224,0 136,-88 136,88" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="4" />
+    </g>
+  </g>
+
+  <!-- 2. CIRCULAR EMBLEM FRAME -->
+  <!-- Outer Gold Ring -->
+  <circle cx="250" cy="250" r="214" fill="#0F5128" stroke="url(#goldGrad)" stroke-width="6" />
+
+  <!-- Inner Green Ring Border -->
+  <circle cx="250" cy="250" r="150" fill="url(#centerGlow)" stroke="url(#goldGrad)" stroke-width="5" />
+  <circle cx="250" cy="250" r="144" fill="none" stroke="#0F5128" stroke-width="2" />
+
+  <!-- 3. CIRCULAR TEXT -->
+  <!-- Top Arc: SEKOLAH MENENGAH PERTAMA ISLAM TERPADU -->
+  <text fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="18" letter-spacing="1.5">
+    <textPath href="#topTextPath" startOffset="50%" text-anchor="middle">
+      SEKOLAH MENENGAH PERTAMA ISLAM TERPADU
+    </textPath>
+  </text>
+
+  <!-- Left and Right Dividing Stars -->
+  <!-- Left Star -->
+  <g transform="translate(54, 250)">
+    <polygon points="0,-12 3.5,-3.5 12,-3.5 5,2 7.5,10.5 0,5.5 -7.5,10.5 -5,2 -12,-3.5 -3.5,-3.5" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="1.5" />
+  </g>
+  <!-- Right Star -->
+  <g transform="translate(446, 250)">
+    <polygon points="0,-12 3.5,-3.5 12,-3.5 5,2 7.5,10.5 0,5.5 -7.5,10.5 -5,2 -12,-3.5 -3.5,-3.5" fill="url(#goldGrad)" stroke="#0A3F1F" stroke-width="1.5" />
+  </g>
+
+  <!-- Bottom Arc: KERANGKENG - BANYUMULEK - KEDIRI - LOBAR -->
+  <text fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="16" letter-spacing="2">
+    <textPath href="#bottomTextPath" startOffset="50%" text-anchor="middle">
+      KERANGKENG - BANYUMULEK - KEDIRI - LOBAR
+    </textPath>
+  </text>
+
+  <!-- 4. INNER EMBLEM CONTENT -->
+  <!-- Small Star at the Top of the Circle -->
+  <g transform="translate(250, 136)">
+    <polygon points="0,-15 4.5,-4.5 15,-4.5 6.5,2.5 9.5,13 0,7 -9.5,13 -6.5,2.5 -15,-4.5 -4.5,-4.5" fill="url(#goldGrad)" stroke="#0F5128" stroke-width="2.5" stroke-linejoin="round" />
+  </g>
+
+  <!-- OPEN QURAN & REHAL (STAND) -->
+  <g transform="translate(250, 246)">
+    <!-- Rehal (Wooden Folding Stand) Base -->
+    <path d="M -85,62 L -35,28 L -15,42 L -65,76 Z" fill="#0F5128" stroke="#0A3F1F" stroke-width="2" />
+    <path d="M 85,62 L 35,28 L 15,42 L 65,76 Z" fill="#0F5128" stroke="#0A3F1F" stroke-width="2" />
+    <path d="M -70,55 L 70,55 L 60,65 L -60,65 Z" fill="#EAB308" />
+    
+    <!-- Quran Outer Green Binding / Cover -->
+    <path d="M 0,22 C -45,18 -85,-8 -108,-45 C -108,-45 -95,-60 0,-34 C 95,-60 108,-45 108,-45 C 85,-8 45,18 0,22 Z" fill="#0F5128" stroke="#0A3F1F" stroke-width="3" />
+    <path d="M 0,22 C -45,16 -82,-12 -104,-48 C -92,-62 -5,-36 0,-34 C 5,-36 92,-62 104,-48 C 82,-12 45,16 0,22 Z" fill="none" stroke="#EAB308" stroke-width="2" />
+
+    <!-- Quran White Curved Pages -->
+    <path d="M 0,18 C -38,14 -72,-8 -96,-40 C -82,-52 -5,-28 0,-26 C 5,-28 82,-52 96,-40 C 72,-8 38,14 0,18 Z" fill="#FFFFFF" stroke="#0F5128" stroke-width="2.5" />
+
+    <!-- Center Page Spine Fold -->
+    <path d="M 0,-26 L 0,18" stroke="#0F5128" stroke-width="2.5" />
+
+    <!-- Page Marginal Borders & Inner Frames -->
+    <!-- Left Page Frame -->
+    <path d="M -8,-24 C -35,-32 -72,-40 -86,-36 C -80,-14 -50,6 -8,13 Z" fill="none" stroke="#0F5128" stroke-width="1.8" />
+    <!-- Right Page Frame -->
+    <path d="M 8,-24 C 35,-32 72,-40 86,-36 C 80,-14 50,6 8,13 Z" fill="none" stroke="#0F5128" stroke-width="1.8" />
+
+    <!-- Arabic Calligraphy in Gold on Left and Right Pages -->
+    <!-- Left Calligraphy -->
+    <g transform="translate(-46, -11) scale(0.68)" fill="url(#goldGrad)" stroke="#B45309" stroke-width="0.8">
+      <path d="M 0,-18 C -5,-12 -8,-4 -4,4 C 0,12 12,12 18,6 C 24,0 22,-8 16,-12 C 10,-16 4,-12 2,-6 C 0,0 8,4 12,0" fill="none" stroke="#D97706" stroke-width="3.5" stroke-linecap="round" />
+      <circle cx="-2" cy="-14" r="2.5" fill="#D97706" />
+      <circle cx="14" cy="-18" r="2.5" fill="#D97706" />
+      <path d="M -12,-2 C -18,2 -16,8 -10,10 C -4,12 0,8 2,4" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" />
+      <path d="M 8,-6 Q 16,-2 12,6" fill="none" stroke="#D97706" stroke-width="2.5" />
+    </g>
+
+    <!-- Right Calligraphy (Al-Qur'an Karim) -->
+    <g transform="translate(46, -11) scale(0.68)" fill="url(#goldGrad)" stroke="#B45309" stroke-width="0.8">
+      <path d="M 0,-18 C 5,-12 8,-4 4,4 C 0,12 -12,12 -18,6 C -24,0 -22,-8 -16,-12 C -10,-16 -4,-12 -2,-6 C 0,0 -8,4 -12,0" fill="none" stroke="#D97706" stroke-width="3.5" stroke-linecap="round" />
+      <circle cx="2" cy="-14" r="2.5" fill="#D97706" />
+      <circle cx="-14" cy="-18" r="2.5" fill="#D97706" />
+      <path d="M 12,-2 C 18,2 16,8 10,10 C 4,12 0,8 -2,4" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" />
+      <path d="M -8,-6 Q -16,-2 -12,6" fill="none" stroke="#D97706" stroke-width="2.5" />
+    </g>
+
+    <!-- Golden Ribbons / Bookmarks hanging below Quran -->
+    <path d="M -15,20 L -18,48 L -12,42 L -6,48 L -9,21" fill="url(#goldGrad)" stroke="#0F5128" stroke-width="1.5" />
+    <path d="M 15,20 L 18,48 L 12,42 L 6,48 L 9,21" fill="url(#goldGrad)" stroke="#0F5128" stroke-width="1.5" />
+  </g>
+
+  <!-- 5. BANNER / RIBBON: SMP IT ANNUR ABHARI -->
+  <g transform="translate(250, 335)">
+    <!-- Center Banner Plate -->
+    <!-- Triple Gold Accent Bars (Left) -->
+    <line x1="-106" y1="-8" x2="-86" y2="-8" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+    <line x1="-110" y1="-1" x2="-84" y2="-1" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+    <line x1="-106" y1="6" x2="-86" y2="6" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Text: SMP IT ANNUR ABHARI -->
+    <text x="0" y="6" text-anchor="middle" fill="#0F5128" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="18.5" letter-spacing="1.2">
+      SMP IT ANNUR ABHARI
+    </text>
+
+    <!-- Triple Gold Accent Bars (Right) -->
+    <line x1="86" y1="-8" x2="106" y2="-8" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+    <line x1="84" y1="-1" x2="110" y2="-1" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+    <line x1="86" y1="6" x2="106" y2="6" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
+  </g>
+</svg>

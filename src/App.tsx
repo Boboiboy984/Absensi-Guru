@@ -9,11 +9,49 @@ import {
   FolderOpen, Edit, Search, Phone, Mail, X, Camera, RefreshCw, CheckCircle, 
   AlertTriangle, AlertCircle, Image as ImageIcon, Eye, RotateCw, Smartphone,
   ExternalLink, Copy, Share2, ScanLine, IdCard, Sparkles, Globe, Volume2, ShieldCheck,
-  Calendar, CalendarCheck, BarChart3, TrendingUp, Award, Layers, CheckCircle2, XCircle
+  Calendar, CalendarCheck, BarChart3, TrendingUp, Award, Layers, CheckCircle2, XCircle,
+  BookOpen, Upload
 } from 'lucide-react';
 import TeacherMobilePortal from './components/TeacherMobilePortal';
 
+// ============================================================================
+// KONFIGURASI LOGO SEKOLAH (SMP IT ANNUR ABHARI)
+// Lokasi file bawaan ada di: public/logo.svg
+// Jika ingin menggunakan file gambar dari laptop tanpa kode, gunakan tombol
+// "Ganti Logo dari Laptop" di menu sidebar aplikasi.
+// Atau ganti string '/logo.svg' di bawah ini dengan file Anda (misal: '/logo.png')
+// ============================================================================
+export const DEFAULT_SCHOOL_LOGO = '/logo.svg';
+
 declare const __initial_auth_token: string | undefined;
+
+export interface SubjectItem {
+  id: string;
+  name: string;
+  code?: string;
+  category?: string;
+}
+
+const DEFAULT_SUBJECTS: SubjectItem[] = [
+  { id: 'sub_1', name: "Al-Qur'an & Tahfidz", code: 'THF', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_2', name: 'Pendidikan Agama Islam (PAI)', code: 'PAI', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_3', name: 'Bahasa Arab', code: 'ARB', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_4', name: 'Akidah Akhlak', code: 'AKD', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_5', name: 'Fiqih', code: 'FQH', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_6', name: 'Sejarah Kebudayaan Islam (SKI)', code: 'SKI', category: 'Keagamaan / Pesantren' },
+  { id: 'sub_7', name: 'Bahasa Indonesia', code: 'BIN', category: 'Umum' },
+  { id: 'sub_8', name: 'Bahasa Inggris', code: 'BIG', category: 'Umum' },
+  { id: 'sub_9', name: 'Matematika', code: 'MTK', category: 'Umum' },
+  { id: 'sub_10', name: 'Ilmu Pengetahuan Alam (IPA)', code: 'IPA', category: 'Umum' },
+  { id: 'sub_11', name: 'Ilmu Pengetahuan Sosial (IPS)', code: 'IPS', category: 'Umum' },
+  { id: 'sub_12', name: 'Pendidikan Pancasila & Kewarganegaraan (PPKn)', code: 'PPKN', category: 'Umum' },
+  { id: 'sub_13', name: 'Informatika', code: 'INF', category: 'Umum' },
+  { id: 'sub_14', name: 'PJOK (Pendidikan Jasmani & Olahraga)', code: 'PJK', category: 'Umum' },
+  { id: 'sub_15', name: 'Seni Budaya', code: 'SBD', category: 'Umum' },
+  { id: 'sub_16', name: 'Prakarya', code: 'PKY', category: 'Umum' },
+  { id: 'sub_17', name: 'Muatan Lokal (Bahasa Sasak)', code: 'MLK', category: 'Muatan Lokal' },
+  { id: 'sub_18', name: 'Bimbingan & Konseling (BK)', code: 'BK', category: 'Bimbingan' },
+];
 
 // ==========================================
 // FIREBASE CONFIGURATION (SMP IT ANNUR ABHARI)
@@ -47,6 +85,61 @@ export default function AplikasiGuru() {
   const [passwordInput, setPasswordInput] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+
+  // Logo Sekolah (Bisa langsung diunggah dari laptop atau menggunakan file bawaan)
+  const [schoolLogo, setSchoolLogo] = useState<string>(() => {
+    try {
+      const savedLogo = localStorage.getItem('smpit_school_logo');
+      if (savedLogo) return savedLogo;
+    } catch (e) {}
+    return DEFAULT_SCHOOL_LOGO;
+  });
+  const [showLogoModal, setShowLogoModal] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('Harap pilih file gambar (PNG, JPG, JPEG, SVG, WebP)!', 'error');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      showNotification('Ukuran gambar maksimal 4MB!', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setSchoolLogo(result);
+        try {
+          localStorage.setItem('smpit_school_logo', result);
+        } catch (err) {
+          console.warn('Gagal menyimpan logo ke localStorage:', err);
+        }
+        showNotification('Logo sekolah dari laptop berhasil dipasang di seluruh aplikasi!', 'success');
+        setShowLogoModal(false);
+      }
+    };
+    reader.onerror = () => {
+      showNotification('Gagal membaca file logo dari laptop.', 'error');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleResetLogo = () => {
+    if (!window.confirm('Kembalikan logo ke logo bawaan sistem (/logo.svg)?')) return;
+    setSchoolLogo(DEFAULT_SCHOOL_LOGO);
+    try {
+      localStorage.removeItem('smpit_school_logo');
+    } catch (e) {}
+    showNotification('Logo sekolah dikembalikan ke logo bawaan (/logo.svg).', 'info');
+    setShowLogoModal(false);
+  };
 
   // Mode Tampilan: 'admin' atau 'presensi_guru' (Portal Scan QR Guru)
   const [viewMode, setViewMode] = useState<'admin' | 'presensi_guru'>(() => {
@@ -152,6 +245,26 @@ export default function AplikasiGuru() {
   const [attendanceNote, setAttendanceNote] = useState('');
   const [attendanceKelas, setAttendanceKelas] = useState('');
   const [attendanceSubject, setAttendanceSubject] = useState('');
+
+  // Manajemen Data Mata Pelajaran
+  const [subjects, setSubjects] = useState<SubjectItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('smpit_subjects');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_SUBJECTS;
+  });
+  const [newSubject, setNewSubject] = useState<{ name: string; code: string; category: string }>({
+    name: '',
+    code: '',
+    category: 'Umum'
+  });
+  const [editingSubject, setEditingSubject] = useState<SubjectItem | null>(null);
+  const [filterSubjectCategory, setFilterSubjectCategory] = useState<string>('Semua');
+  const [searchSubject, setSearchSubject] = useState<string>('');
 
   // Filter & Tampilan Rekap Absensi
   const [filterMonth, setFilterMonth] = useState<string>('Semua');
@@ -272,10 +385,20 @@ export default function AplikasiGuru() {
       }
     }, (error) => console.warn("Notice files listener:", error));
 
+    const subjectsRef = collection(db, 'subjects');
+    const unsubSubjects = onSnapshot(subjectsRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectItem));
+        setSubjects(list);
+        try { localStorage.setItem('smpit_subjects', JSON.stringify(list)); } catch (e) {}
+      }
+    }, (error) => console.warn("Notice subjects listener:", error));
+
     return () => {
       unsubTeachers();
       unsubAttendances();
       unsubFiles();
+      unsubSubjects();
     };
   }, [user]);
 
@@ -375,6 +498,89 @@ export default function AplikasiGuru() {
     setTeachers([]);
     try { localStorage.setItem('smpit_teachers', JSON.stringify([])); } catch (e) {}
     showNotification('Seluruh data guru berhasil dikosongkan.', 'success');
+  };
+
+  // ==========================================
+  // MANAJEMEN MATA PELAJARAN HANDLERS
+  // ==========================================
+  const handleAddSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubject.name || !newSubject.name.trim()) {
+      showNotification('Nama mata pelajaran wajib diisi!', 'error');
+      return;
+    }
+    const subjectData = {
+      name: newSubject.name.trim(),
+      code: newSubject.code?.trim().toUpperCase() || '',
+      category: newSubject.category || 'Umum',
+      createdAt: serverTimestamp()
+    };
+    let newId = 'sub_' + Date.now();
+    try {
+      const docRef = await withTimeout(addDoc(collection(db, 'subjects'), subjectData), 3000);
+      newId = docRef.id;
+    } catch (error) {
+      console.warn("Firestore addDoc error, menyimpan secara lokal:", error);
+    }
+    setSubjects(prev => {
+      const updated = [...prev, { ...subjectData, id: newId }];
+      try { localStorage.setItem('smpit_subjects', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setNewSubject({ name: '', code: '', category: 'Umum' });
+    showNotification(`Mata pelajaran "${subjectData.name}" berhasil ditambahkan!`, 'success');
+  };
+
+  const handleEditSubject = (subject: SubjectItem) => {
+    setEditingSubject({ ...subject });
+  };
+
+  const handleUpdateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSubject || !editingSubject.id || !editingSubject.name?.trim()) {
+      showNotification('Nama mata pelajaran wajib diisi!', 'error');
+      return;
+    }
+    const updatedData = {
+      name: editingSubject.name.trim(),
+      code: editingSubject.code?.trim().toUpperCase() || '',
+      category: editingSubject.category || 'Umum'
+    };
+    try {
+      const subDocRef = doc(db, 'subjects', editingSubject.id);
+      await withTimeout(updateDoc(subDocRef, updatedData), 3000);
+    } catch (error) {
+      console.warn("Firestore updateDoc error, memperbarui secara lokal:", error);
+    }
+    setSubjects(prev => {
+      const updated = prev.map(s => s.id === editingSubject.id ? { ...s, ...updatedData } : s);
+      try { localStorage.setItem('smpit_subjects', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setEditingSubject(null);
+    showNotification(`Mata pelajaran "${updatedData.name}" berhasil diperbarui!`, 'success');
+  };
+
+  const handleDeleteSubject = async (id: string, name: string) => {
+    if (!window.confirm(`Hapus mata pelajaran "${name}"?`)) return;
+    try {
+      await deleteDoc(doc(db, 'subjects', id));
+    } catch (error) {
+      console.warn("Firestore deleteDoc error, menghapus secara lokal:", error);
+    }
+    setSubjects(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      try { localStorage.setItem('smpit_subjects', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    showNotification(`Mata pelajaran "${name}" berhasil dihapus.`, 'success');
+  };
+
+  const handleResetSubjects = async () => {
+    if (!window.confirm("Muat ulang daftar 18 mata pelajaran standar kurikulum SMP IT Annur Abhari?")) return;
+    setSubjects(DEFAULT_SUBJECTS);
+    try { localStorage.setItem('smpit_subjects', JSON.stringify(DEFAULT_SUBJECTS)); } catch (e) {}
+    showNotification('Daftar mata pelajaran standar SMP IT Annur Abhari berhasil dimuat!', 'success');
   };
 
   // ==========================================
@@ -1045,8 +1251,8 @@ export default function AplikasiGuru() {
     ? Math.round((totalMonthlyHadir / totalMonthlySesi) * 100) 
     : 0;
 
-  const exportMonthlyRecapExcel = () => {
-    const periodLabel = formatMonthYear(selectedRekapMonth);
+  // Unduh Rekap Bulanan Resmi dengan Kop Surat Yayasan, Lembaga & Pengesahan Tanda Tangan
+  const exportMonthlyRecapOfficial = () => {
     const todayStr = new Date().toLocaleDateString('id-ID', {
       weekday: 'long',
       year: 'numeric',
@@ -1054,160 +1260,13 @@ export default function AplikasiGuru() {
       day: 'numeric'
     });
 
-    let teacherRowsHtml = '';
-    monthlyTeacherSummary.forEach((row, idx) => {
-      const evalBg = row.total === 0 ? '#F3F4F6' : row.persentase >= 90 ? '#DCFCE7' : row.persentase >= 75 ? '#EFF6FF' : '#FEF3C7';
-      const evalColor = row.total === 0 ? '#6B7280' : row.persentase >= 90 ? '#15803D' : row.persentase >= 75 ? '#1D4ED8' : '#B45309';
-
-      teacherRowsHtml += `
-        <tr style="height: 28px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 11pt;">${idx + 1}</td>
-          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.name}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.status}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #15803D; font-size: 11pt; background-color: #F0FDF4;">${row.hadir}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B45309; font-size: 11pt; background-color: #FFFBEB;">${row.izin}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B91C1C; font-size: 11pt; background-color: #FEF2F2;">${row.sakit}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt; background-color: #F8FAFC;">${row.total}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 11pt;">${row.persentase}%</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt; font-weight: bold; background-color: ${evalBg}; color: ${evalColor};">${row.evaluasi}</td>
-        </tr>
-      `;
-    });
-
-    const excelTemplate = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-        <style>
-          body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; }
-          table { border-collapse: collapse; width: 100%; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <tr>
-            <td colspan="9" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
-              YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
-            </td>
-          </tr>
-          <tr>
-            <td colspan="9" style="text-align: center; font-size: 18pt; font-weight: bold; color: #1E40AF;">
-              SMP IT ANNUR ABHARI
-            </td>
-          </tr>
-          <tr>
-            <td colspan="9" style="text-align: center; font-size: 10pt; color: #4B5563;">
-              Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
-            </td>
-          </tr>
-          <tr>
-            <td colspan="9" style="text-align: center; font-size: 14pt; font-weight: bold; padding: 8px 0; border-top: 2px solid #1E3A8A; border-bottom: 2px solid #1E3A8A;">
-              REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU
-            </td>
-          </tr>
-          <tr>
-            <td colspan="9" style="text-align: left; font-size: 10pt; color: #374151; padding: 6px 0;">
-              <b>Periode Rekap:</b> ${periodLabel} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Guru:</b> ${monthlyTeacherSummary.length} Orang &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Sesi Hadir:</b> ${totalMonthlyHadir} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Izin:</b> ${totalMonthlyIzin} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Sakit:</b> ${totalMonthlySakit} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Rata-rata Kehadiran:</b> ${averageMonthlyAttendance}%
-            </td>
-          </tr>
-          <tr><td colspan="9" style="height: 10px;"></td></tr>
-          <thead>
-            <tr style="background-color: #1E40AF; color: #FFFFFF; font-weight: bold; height: 36px;">
-              <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
-              <th style="border: 1px solid #000000; text-align: left; width: 250px;">NAMA GURU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 100px;">STATUS</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 80px;">HADIR</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 80px;">IZIN</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 80px;">SAKIT</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 90px;">TOTAL SESI</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 100px;">% KEHADIRAN</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 140px;">KETERANGAN</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${teacherRowsHtml}
-          </tbody>
-          <tfoot>
-            <tr style="background-color: #E2E8F0; font-weight: bold; height: 32px;">
-              <td colspan="3" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL REKAPITULASI:</td>
-              <td style="border: 1px solid #94A3B8; text-align: center; color: #15803D;">${totalMonthlyHadir}</td>
-              <td style="border: 1px solid #94A3B8; text-align: center; color: #B45309;">${totalMonthlyIzin}</td>
-              <td style="border: 1px solid #94A3B8; text-align: center; color: #B91C1C;">${totalMonthlySakit}</td>
-              <td style="border: 1px solid #94A3B8; text-align: center;">${totalMonthlySesi}</td>
-              <td style="border: 1px solid #94A3B8; text-align: center;">${averageMonthlyAttendance}%</td>
-              <td style="border: 1px solid #94A3B8; text-align: center;">-</td>
-            </tr>
-            <tr><td colspan="9" style="height: 25px;"></td></tr>
-            <tr>
-              <td colspan="4" style="text-align: center; font-size: 11pt;">
-                Mengetahui,<br>
-                <b>Kepala SMP IT Annur Abhari</b><br><br><br><br>
-                <u>___________________________</u>
-              </td>
-              <td></td>
-              <td colspan="4" style="text-align: center; font-size: 11pt;">
-                Banyumulek, ${todayStr}<br>
-                <b>Petugas Kurikulum / Kepegawaian</b><br><br><br><br>
-                <u>___________________________</u>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Rekap_Total_Bulanan_Guru_${selectedRekapMonth}_${new Date().toISOString().slice(0, 10)}.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showNotification(`Laporan Excel Rekap Bulanan (${periodLabel}) berhasil diunduh!`, 'success');
-  };
-
-  const exportMonthlyToCSV = () => {
-    let csv = "\uFEFF"; // UTF-8 BOM
-    csv += "No;Nama Guru;Status;Hadir (Sesi);Izin (Sesi);Sakit (Sesi);Total Sesi;Persentase Kehadiran;Evaluasi Disiplin\r\n";
-    monthlyTeacherSummary.forEach((row, idx) => {
-      csv += `${idx + 1};"${row.name}";"${row.status}";"${row.hadir}";"${row.izin}";"${row.sakit}";"${row.total}";"${row.persentase}%";"${row.evaluasi}"\r\n`;
-    });
-    csv += `TOTAL;;;${totalMonthlyHadir};${totalMonthlyIzin};${totalMonthlySakit};${totalMonthlySesi};${averageMonthlyAttendance}%;-\r\n`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Rekap_Total_Bulanan_Guru_${selectedRekapMonth}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showNotification('File CSV Rekap Bulanan Guru berhasil diunduh!', 'success');
-  };
-
-  const exportToExcel = () => {
-    const todayStr = new Date().toLocaleDateString('id-ID', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const totalRekap = filteredAttendances.length;
-    const totalHadir = filteredAttendances.filter(a => !a.status || a.status === 'Hadir').length;
-    const totalIzin = filteredAttendances.filter(a => a.status === 'Izin').length;
-    const totalSakit = filteredAttendances.filter(a => a.status === 'Sakit').length;
-
-    // Bagian I: Tabel Rekapitulasi Bulanan Per Guru
     let monthlyRowsHtml = '';
     monthlyTeacherSummary.forEach((row, idx) => {
       const evalBg = row.total === 0 ? '#F3F4F6' : row.persentase >= 90 ? '#DCFCE7' : row.persentase >= 75 ? '#EFF6FF' : '#FEF3C7';
       const evalColor = row.total === 0 ? '#6B7280' : row.persentase >= 90 ? '#15803D' : row.persentase >= 75 ? '#1D4ED8' : '#B45309';
 
       monthlyRowsHtml += `
-        <tr style="height: 26px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
+        <tr style="height: 28px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
           <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${idx + 1}</td>
           <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.name}</td>
           <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.status}</td>
@@ -1216,44 +1275,10 @@ export default function AplikasiGuru() {
           <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; color: #B91C1C; font-size: 10pt;">${row.sakit}</td>
           <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.total}</td>
           <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.persentase}%</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 9pt; font-weight: bold; background-color: ${evalBg}; color: ${evalColor};">${row.evaluasi}</td>
+          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 9.5pt; font-weight: bold; background-color: ${evalBg}; color: ${evalColor};">${row.evaluasi}</td>
         </tr>
       `;
     });
-
-    // Bagian II: Rincian Log Presensi Harian
-    let tableRows = '';
-    filteredAttendances.forEach((row, idx) => {
-      const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
-      const statusText = row.status || 'Hadir';
-      const statusBg = statusText === 'Hadir' ? '#DCFCE7' : statusText === 'Izin' ? '#FEF3C7' : '#FEE2E2';
-      const statusColor = statusText === 'Hadir' ? '#15803D' : statusText === 'Izin' ? '#B45309' : '#B91C1C';
-      
-      tableRows += `
-        <tr style="height: 28px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${idx + 1}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.date || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt; font-family: monospace;">${row.time || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${meetingNum}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-weight: bold; background-color: ${statusBg}; color: ${statusColor}; font-size: 10pt;">${statusText}</td>
-          <td style="text-align: left; border: 1px solid #D1D5DB; font-weight: bold; font-size: 10pt;">${row.teacherName || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.teacherKelas || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.teacherSubject || '-'}</td>
-          <td style="text-align: left; border: 1px solid #D1D5DB; font-size: 10pt;">${row.note || '-'}</td>
-          <td style="text-align: center; border: 1px solid #D1D5DB; font-size: 10pt;">${row.photoUrl ? 'Terverifikasi' : 'Tanpa Foto'}</td>
-        </tr>
-      `;
-    });
-
-    if (filteredAttendances.length === 0) {
-      tableRows = `
-        <tr>
-          <td colspan="10" style="text-align: center; padding: 20px; border: 1px solid #D1D5DB; color: #6B7280; font-style: italic;">
-            Belum ada catatan log absensi pada filter ini.
-          </td>
-        </tr>
-      `;
-    }
 
     const excelTemplate = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1264,7 +1289,7 @@ export default function AplikasiGuru() {
           <x:ExcelWorkbook>
             <x:ExcelWorksheets>
               <x:ExcelWorksheet>
-                <x:Name>Rekap Presensi Lengkap</x:Name>
+                <x:Name>Rekap Bulanan Guru</x:Name>
                 <x:WorksheetOptions>
                   <x:DisplayGridlines/>
                 </x:WorksheetOptions>
@@ -1280,111 +1305,77 @@ export default function AplikasiGuru() {
       </head>
       <body>
         <table>
-          <!-- KOP SURAT SEKOLAH -->
+          <!-- KOP SURAT YAYASAN DAN LEMBAGA SEKOLAH -->
           <tr>
-            <td colspan="10" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
+            <td colspan="9" style="text-align: center; font-size: 13pt; font-weight: bold; color: #1E3A8A; padding-top: 10px;">
               YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
             </td>
           </tr>
           <tr>
-            <td colspan="10" style="text-align: center; font-size: 18pt; font-weight: bold; color: #1E40AF;">
+            <td colspan="9" style="text-align: center; font-size: 18pt; font-weight: bold; color: #1E40AF;">
               SMP IT ANNUR ABHARI
             </td>
           </tr>
           <tr>
-            <td colspan="10" style="text-align: center; font-size: 10pt; color: #4B5563;">
-              Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
+            <td colspan="9" style="text-align: center; font-size: 10pt; color: #4B5563;">
+              Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat - NTB
             </td>
           </tr>
           <tr>
-            <td colspan="10" style="text-align: center; font-size: 14pt; font-weight: bold; padding: 8px 0; border-top: 2px solid #1E3A8A; border-bottom: 2px solid #1E3A8A;">
-              LAPORAN REKAPITULASI PRESENSI KEHADIRAN GURU
+            <td colspan="9" style="text-align: center; font-size: 14pt; font-weight: bold; padding: 10px 0; border-top: 2px solid #1E3A8A; border-bottom: 2px solid #1E3A8A; color: #111827;">
+              LAPORAN REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU
             </td>
           </tr>
           <tr>
-            <td colspan="10" style="text-align: left; font-size: 10pt; color: #374151; padding: 6px 0;">
-              <b>Tanggal Laporan:</b> ${todayStr} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Periode Bulan:</b> ${formatMonthYear(selectedRekapMonth)} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Rekap:</b> ${totalRekap} Data &nbsp;&nbsp;|&nbsp;&nbsp; <b>Hadir:</b> ${totalHadir} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Izin:</b> ${totalIzin} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Sakit:</b> ${totalSakit}
+            <td colspan="9" style="text-align: left; font-size: 10pt; color: #374151; padding: 8px 0;">
+              <b>Periode Rekapitulasi:</b> ${formatMonthYear(selectedRekapMonth)} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Tanggal Laporan:</b> ${todayStr} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Total Guru Terdaftar:</b> ${monthlyTeacherSummary.length} Orang &nbsp;&nbsp;|&nbsp;&nbsp; <b>Tingkat Kehadiran:</b> ${averageMonthlyAttendance}%
             </td>
           </tr>
-          <tr><td colspan="10" style="height: 15px;"></td></tr>
+          <tr><td colspan="9" style="height: 12px;"></td></tr>
 
-          <!-- SECTION 1: REKAP BULANAN PER GURU -->
-          <tr>
-            <td colspan="10" style="background-color: #1E3A8A; color: #FFFFFF; font-weight: bold; font-size: 12pt; padding: 6px 10px;">
-              BAGIAN I: REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU (${formatMonthYear(selectedRekapMonth)})
-            </td>
-          </tr>
+          <!-- TABEL REKAPITULASI -->
           <thead>
-            <tr style="background-color: #2563EB; color: #FFFFFF; font-weight: bold; height: 32px;">
+            <tr style="background-color: #2563EB; color: #FFFFFF; font-weight: bold; height: 34px;">
               <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
               <th style="border: 1px solid #000000; text-align: left; width: 240px;">NAMA GURU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 100px;">STATUS</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 70px;">HADIR</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 70px;">IZIN</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 70px;">SAKIT</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 85px;">TOTAL SESI</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 95px;">% HADIR</th>
-              <th colspan="2" style="border: 1px solid #000000; text-align: center; width: 180px;">KETERANGAN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 110px;">STATUS</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">HADIR</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">IZIN</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 80px;">SAKIT</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 95px;">TOTAL SESI</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 100px;">% HADIR</th>
+              <th style="border: 1px solid #000000; text-align: center; width: 140px;">EVALUASI</th>
             </tr>
           </thead>
           <tbody>
             ${monthlyRowsHtml}
-            <tr style="background-color: #E2E8F0; font-weight: bold; height: 30px;">
-              <td colspan="3" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL:</td>
+            <tr style="background-color: #E2E8F0; font-weight: bold; height: 32px;">
+              <td colspan="3" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL REKAPITULASI:</td>
               <td style="border: 1px solid #94A3B8; text-align: center; color: #15803D;">${totalMonthlyHadir}</td>
               <td style="border: 1px solid #94A3B8; text-align: center; color: #B45309;">${totalMonthlyIzin}</td>
               <td style="border: 1px solid #94A3B8; text-align: center; color: #B91C1C;">${totalMonthlySakit}</td>
               <td style="border: 1px solid #94A3B8; text-align: center;">${totalMonthlySesi}</td>
               <td style="border: 1px solid #94A3B8; text-align: center;">${averageMonthlyAttendance}%</td>
-              <td colspan="2" style="border: 1px solid #94A3B8; text-align: center;">-</td>
+              <td style="border: 1px solid #94A3B8; text-align: center;">-</td>
             </tr>
           </tbody>
 
-          <tr><td colspan="10" style="height: 20px;"></td></tr>
-
-          <!-- SECTION 2: RINCIAN LOG PRESENSI HARIAN -->
-          <tr>
-            <td colspan="10" style="background-color: #1E3A8A; color: #FFFFFF; font-weight: bold; font-size: 12pt; padding: 6px 10px;">
-              BAGIAN II: RINCIAN LOG PRESENSI HARIAN
-            </td>
-          </tr>
-          <thead>
-            <tr style="background-color: #1E40AF; color: #FFFFFF; font-weight: bold; height: 34px;">
-              <th style="border: 1px solid #000000; text-align: center; width: 45px;">NO</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 100px;">TANGGAL</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 80px;">WAKTU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 60px;">SESI</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 90px;">STATUS</th>
-              <th style="border: 1px solid #000000; text-align: left; width: 220px;">NAMA GURU</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 140px;">KELAS</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 160px;">MATA PELAJARAN</th>
-              <th style="border: 1px solid #000000; text-align: left; width: 180px;">KETERANGAN</th>
-              <th style="border: 1px solid #000000; text-align: center; width: 110px;">FOTO BUKTI</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows}
-          </tbody>
-          <!-- RINGKASAN FOOTER -->
+          <!-- PENGESAHAN & TANDA TANGAN RESMI -->
           <tfoot>
-            <tr style="background-color: #E2E8F0; font-weight: bold; height: 30px;">
-              <td colspan="4" style="border: 1px solid #94A3B8; text-align: right; padding-right: 10px;">TOTAL LOG:</td>
-              <td colspan="6" style="border: 1px solid #94A3B8; text-align: left; padding-left: 10px;">
-                Hadir: ${totalHadir} | Izin: ${totalIzin} | Sakit: ${totalSakit} | Total: ${totalRekap}
-              </td>
-            </tr>
-            <tr><td colspan="10" style="height: 25px;"></td></tr>
+            <tr><td colspan="9" style="height: 30px;"></td></tr>
             <tr>
               <td colspan="4" style="text-align: center; font-size: 11pt;">
                 Mengetahui,<br>
-                <b>Kepala SMP IT Annur Abhari</b><br><br><br><br>
-                <u>___________________________</u><br>
+                <b>Kepala Sekolah</b><br><br><br><br>
+                <b style="text-decoration: underline;">Wahyu Kusuma, S.Pd</b><br>
+                <span style="font-size: 9.5pt; color: #4B5563;">Kepala SMP IT Annur Abhari</span>
               </td>
-              <td colspan="2"></td>
+              <td></td>
               <td colspan="4" style="text-align: center; font-size: 11pt;">
-                Dicetak pada: ${todayStr}<br>
-                <b>Petugas Piket / Kurikulum</b><br><br><br><br>
-                <u>___________________________</u><br>
+                Banyumulek, ${todayStr}<br>
+                <b>Waka Kurikulum</b><br><br><br><br>
+                <b style="text-decoration: underline;">Lalu Hairurrozi, S.Sos</b><br>
+                <span style="font-size: 9.5pt; color: #4B5563;">Waka Kurikulum SMP IT Annur Abhari</span>
               </td>
             </tr>
           </tfoot>
@@ -1396,33 +1387,96 @@ export default function AplikasiGuru() {
     const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Rekap_Presensi_Guru_SMPIT_Annur_${new Date().toISOString().slice(0, 10)}.xls`);
+    link.href = url;
+    link.download = `Rekap_Bulanan_Guru_SMPIT_Annur_${selectedRekapMonth}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showNotification('Laporan Excel Lengkap (.xls) berhasil diunduh!', 'success');
+    showNotification('Laporan Rekap Bulanan Lengkap dengan Kop Yayasan berhasil diunduh!', 'success');
+  };
+
+  const exportMonthlyToCSV = () => {
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    let csv = "\uFEFF"; // UTF-8 BOM agar rapi di Microsoft Excel Indonesia
+    // KOP SURAT YAYASAN DAN LEMBAGA
+    csv += "YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI;;;;;;;;\r\n";
+    csv += "SMP IT ANNUR ABHARI;;;;;;;;\r\n";
+    csv += "Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat - NTB;;;;;;;;\r\n";
+    csv += "LAPORAN REKAPITULASI TOTAL KEHADIRAN BULANAN PER GURU;;;;;;;;\r\n";
+    csv += `Periode: ${formatMonthYear(selectedRekapMonth)} | Tanggal Cetak: ${todayStr};;;;;;;;\r\n`;
+    csv += ";;;;;;;;\r\n";
+    csv += "No;Nama Guru;Status;Hadir (Sesi);Izin (Sesi);Sakit (Sesi);Total Sesi;Persentase Kehadiran;Evaluasi Disiplin\r\n";
+    
+    monthlyTeacherSummary.forEach((row, idx) => {
+      csv += `${idx + 1};"${row.name}";"${row.status}";"${row.hadir}";"${row.izin}";"${row.sakit}";"${row.total}";"${row.persentase}%";"${row.evaluasi}"\r\n`;
+    });
+    csv += `TOTAL;;;${totalMonthlyHadir};${totalMonthlyIzin};${totalMonthlySakit};${totalMonthlySesi};${averageMonthlyAttendance}%;-\r\n`;
+    csv += ";;;;;;;;\r\n";
+    csv += ";;;;;;;;\r\n";
+    csv += `Mengetahui,;;;;;;;Banyumulek, ${todayStr}\r\n`;
+    csv += "Kepala SMP IT Annur Abhari;;;;;;;Waka Kurikulum SMP IT Annur Abhari\r\n";
+    csv += ";;;;;;;;\r\n";
+    csv += ";;;;;;;;\r\n";
+    csv += "Wahyu Kusuma, S.Pd;;;;;;;Lalu Hairurrozi, S.Sos\r\n";
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Rekap_Total_Bulanan_Guru_${selectedRekapMonth}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showNotification('File CSV Rekap Bulanan dengan Kop Yayasan berhasil diunduh!', 'success');
   };
 
   const exportToCSV = () => {
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
     let csv = "\uFEFF"; // UTF-8 BOM agar rapi di Microsoft Excel Indonesia
+    // KOP SURAT YAYASAN DAN LEMBAGA
+    csv += "YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI;;;;;;;;;\r\n";
+    csv += "SMP IT ANNUR ABHARI;;;;;;;;;\r\n";
+    csv += "Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat - NTB;;;;;;;;;\r\n";
+    csv += "RINCIAN RIWAYAT LOG PRESENSI HARIAN GURU;;;;;;;;;\r\n";
+    csv += `Periode: ${formatMonthYear(selectedRekapMonth)} | Tanggal Laporan: ${todayStr};;;;;;;;;\r\n`;
+    csv += ";;;;;;;;;\r\n";
     csv += "No;Tanggal;Waktu;Sesi;Status;Nama Guru;Kelas;Mata Pelajaran;Keterangan;Foto Bukti\r\n";
     filteredAttendances.forEach((row, idx) => {
       const meetingNum = (row.meeting || '1').replace(/[^0-9]/g, '') || '1';
       const cleanNote = (row.note || '-').replace(/;/g, ',').replace(/\r?\n/g, ' ');
       csv += `${idx + 1};"${row.date || ''}";"${row.time || ''}";"${meetingNum}";"${row.status || 'Hadir'}";"${row.teacherName || ''}";"${row.teacherKelas || ''}";"${row.teacherSubject || ''}";"${cleanNote}";"${row.photoUrl ? 'Ada Foto' : 'Tanpa Foto'}"\r\n`;
     });
+    csv += ";;;;;;;;;\r\n";
+    csv += `Mengetahui,;;;;;;;;Banyumulek, ${todayStr}\r\n`;
+    csv += "Kepala SMP IT Annur Abhari;;;;;;;;Waka Kurikulum SMP IT Annur Abhari\r\n";
+    csv += ";;;;;;;;;\r\n";
+    csv += ";;;;;;;;;\r\n";
+    csv += "Wahyu Kusuma, S.Pd;;;;;;;;Lalu Hairurrozi, S.Sos\r\n";
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Rekap_Presensi_Guru_SMPIT_Annur_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `Log_Presensi_Harian_SMPIT_Annur_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showNotification('File CSV rapi berhasil diunduh!', 'success');
+    showNotification('File CSV Log Harian dengan Kop Yayasan berhasil diunduh!', 'success');
   };
 
   const exportToPDF = () => {
@@ -1437,6 +1491,8 @@ export default function AplikasiGuru() {
       <TeacherMobilePortal
         teachers={teachers}
         attendances={attendances}
+        subjects={subjects}
+        schoolLogo={schoolLogo}
         onRecordAttendance={handleRecordAttendanceFromPortal}
         onSwitchToAdmin={() => setViewMode('admin')}
       />
@@ -1468,8 +1524,8 @@ export default function AplikasiGuru() {
           </div>
 
           <div className="text-center mb-6">
-            <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md">
-              <Users className="text-white w-8 h-8" />
+            <div className="w-16 h-16 mx-auto mb-3 flex items-center justify-center p-1 bg-white rounded-2xl shadow-md border border-blue-100">
+              <img src={schoolLogo} alt="Logo SMP IT Annur Abhari" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-gray-800">Aplikasi Presensi Guru</h1>
             <p className="text-gray-500 text-sm mt-1">SMP IT Annur Abhari</p>
@@ -1545,9 +1601,30 @@ export default function AplikasiGuru() {
 
       {/* SIDEBAR */}
       <aside className="w-full md:w-64 bg-blue-800 text-white flex flex-col shadow-xl print:hidden">
-        <div className="p-6 text-center border-b border-blue-700">
-          <h2 className="text-xl font-bold tracking-wider">Aplikasi Guru</h2>
-          <p className="text-blue-300 text-xs mt-1">SMP IT Annur Abhari</p>
+        <div className="p-5 text-center border-b border-blue-700 flex flex-col items-center">
+          <div className="relative mb-2">
+            <div className="w-14 h-14 p-1 bg-white/95 rounded-2xl shadow-md flex items-center justify-center overflow-hidden">
+              <img src={schoolLogo} alt="Logo SMP IT Annur Abhari" className="w-full h-full object-contain" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLogoModal(true)}
+              title="Ganti Logo Sekolah dari Laptop"
+              className="absolute -bottom-1 -right-1 bg-blue-600 hover:bg-blue-500 text-white p-1 rounded-full shadow-md border-2 border-white transition"
+            >
+              <Camera size={12} />
+            </button>
+          </div>
+          <h2 className="text-lg font-bold tracking-wider leading-tight">SMP IT ANNUR ABHARI</h2>
+          <p className="text-blue-200 text-xs mt-0.5">Sistem Informasi Guru</p>
+          <button
+            type="button"
+            onClick={() => setShowLogoModal(true)}
+            className="mt-2 text-[11px] bg-blue-700/70 hover:bg-blue-600 text-blue-100 hover:text-white px-2.5 py-1 rounded-full border border-blue-500/50 transition flex items-center gap-1.5 font-medium"
+          >
+            <Upload size={11} />
+            <span>Ganti Logo Sekolah</span>
+          </button>
         </div>
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${activeTab === 'dashboard' ? 'bg-blue-900 font-bold shadow-inner' : 'hover:bg-blue-700'}`}>
@@ -1555,6 +1632,9 @@ export default function AplikasiGuru() {
           </button>
           <button onClick={() => setActiveTab('teachers')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${activeTab === 'teachers' ? 'bg-blue-900 font-bold shadow-inner' : 'hover:bg-blue-700'}`}>
             <Users size={20} /> <span>Data Guru</span>
+          </button>
+          <button onClick={() => setActiveTab('subjects')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${activeTab === 'subjects' ? 'bg-blue-900 font-bold shadow-inner' : 'hover:bg-blue-700'}`}>
+            <BookOpen size={20} /> <span>Mata Pelajaran</span>
           </button>
           <button onClick={() => setActiveTab('qr')} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${activeTab === 'qr' ? 'bg-blue-900 font-bold shadow-inner' : 'hover:bg-blue-700'}`}>
             <QrCode size={20} /> <span>Absensi QR</span>
@@ -1773,6 +1853,273 @@ export default function AplikasiGuru() {
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* MATA PELAJARAN TAB */}
+        {activeTab === 'subjects' && (
+          <div className="space-y-6 animate-fadeIn print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-800">Manajemen Mata Pelajaran</h1>
+                <p className="text-gray-500 text-sm">
+                  Kelola daftar mata pelajaran kurikulum SMP IT Annur Abhari untuk pilihan formulir presensi guru.
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={handleResetSubjects}
+                  title="Kembalikan ke 18 daftar mata pelajaran kurikulum standar SMP IT Annur Abhari"
+                  className="px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center space-x-2 transition"
+                >
+                  <RefreshCw size={15} />
+                  <span>Muat Standar Kurikulum SMP IT (18 Mapel)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Form Tambah Mata Pelajaran */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center space-x-2">
+                <BookOpen size={18} className="text-blue-600" />
+                <span>Tambah Mata Pelajaran Baru</span>
+              </h3>
+              <form onSubmit={handleAddSubject} className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-5">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    Nama Mata Pelajaran <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newSubject.name}
+                    onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
+                    className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Contoh: Tahfidz Al-Qur'an / Matematika"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Kode Singkat</label>
+                  <input
+                    type="text"
+                    value={newSubject.code}
+                    onChange={(e) => setNewSubject({ ...newSubject, code: e.target.value })}
+                    className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono"
+                    placeholder="Contoh: THF"
+                  />
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Kategori Kurikulum</label>
+                  <select
+                    value={newSubject.category}
+                    onChange={(e) => setNewSubject({ ...newSubject, category: e.target.value })}
+                    className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
+                  >
+                    <option value="Umum">Umum / Wajib</option>
+                    <option value="Keagamaan / Pesantren">Keagamaan / Pesantren</option>
+                    <option value="Muatan Lokal">Muatan Lokal</option>
+                    <option value="Ekstrakurikuler">Ekstrakurikuler / Pilihan</option>
+                    <option value="Bimbingan">Bimbingan & Konseling</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2 flex items-end">
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 text-white font-bold py-2.5 px-4 rounded-xl hover:bg-blue-700 transition shadow-xs flex items-center justify-center space-x-2 text-sm"
+                  >
+                    <Plus size={18} />
+                    <span>Simpan</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Tabel Daftar Mata Pelajaran */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">
+                <div className="flex items-center space-x-3">
+                  <h3 className="font-bold text-gray-800 text-base">Daftar Mata Pelajaran Aktif</h3>
+                  <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                    {subjects.length} Mapel
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchSubject}
+                      onChange={(e) => setSearchSubject(e.target.value)}
+                      placeholder="Cari mapel..."
+                      className="pl-8 pr-3 py-1.5 border rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white w-40 sm:w-48"
+                    />
+                  </div>
+                  <select
+                    value={filterSubjectCategory}
+                    onChange={(e) => setFilterSubjectCategory(e.target.value)}
+                    className="px-3 py-1.5 border rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
+                  >
+                    <option value="Semua">Semua Kategori</option>
+                    <option value="Umum">Umum / Wajib</option>
+                    <option value="Keagamaan / Pesantren">Keagamaan / Pesantren</option>
+                    <option value="Muatan Lokal">Muatan Lokal</option>
+                    <option value="Ekstrakurikuler">Ekstrakurikuler</option>
+                    <option value="Bimbingan">Bimbingan</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5 text-center w-12">No</th>
+                      <th className="p-3.5 w-24">Kode</th>
+                      <th className="p-3.5">Nama Mata Pelajaran</th>
+                      <th className="p-3.5">Kategori</th>
+                      <th className="p-3.5 text-center w-28">Status</th>
+                      <th className="p-3.5 text-right w-24">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {subjects
+                      .filter(s => {
+                        const matchCat = filterSubjectCategory === 'Semua' || s.category === filterSubjectCategory;
+                        const matchSearch = !searchSubject.trim() || s.name.toLowerCase().includes(searchSubject.toLowerCase()) || (s.code || '').toLowerCase().includes(searchSubject.toLowerCase());
+                        return matchCat && matchSearch;
+                      })
+                      .map((sub, idx) => (
+                        <tr key={sub.id} className="hover:bg-blue-50/40 transition">
+                          <td className="p-3.5 text-center text-xs font-semibold text-gray-500">{idx + 1}</td>
+                          <td className="p-3.5">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                              {sub.code || '-'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-bold text-gray-800">{sub.name}</td>
+                          <td className="p-3.5">
+                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${
+                              sub.category?.includes('Keagamaan') 
+                                ? 'bg-emerald-100 text-emerald-800' 
+                                : sub.category === 'Muatan Lokal'
+                                ? 'bg-purple-100 text-purple-800'
+                                : sub.category === 'Bimbingan'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {sub.category || 'Umum'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className="inline-flex items-center text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                              Aktif di Presensi
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleEditSubject(sub)}
+                              title="Edit mata pelajaran"
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSubject(sub.id, sub.name)}
+                              title="Hapus mata pelajaran"
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {subjects.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-10 text-center text-gray-400">
+                          Belum ada mata pelajaran. Klik tombol "Muat Standar Kurikulum SMP IT" untuk mengisi otomatis.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Edit Mata Pelajaran */}
+            {editingSubject && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fadeIn">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="text-lg font-bold text-gray-800">Edit Mata Pelajaran</h3>
+                    <button
+                      type="button"
+                      onClick={() => setEditingSubject(null)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleUpdateSubject} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Nama Mata Pelajaran *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editingSubject.name}
+                        onChange={(e) => setEditingSubject({ ...editingSubject, name: e.target.value })}
+                        className="w-full px-3.5 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Kode Singkat</label>
+                        <input
+                          type="text"
+                          value={editingSubject.code || ''}
+                          onChange={(e) => setEditingSubject({ ...editingSubject, code: e.target.value })}
+                          className="w-full px-3.5 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Kategori</label>
+                        <select
+                          value={editingSubject.category || 'Umum'}
+                          onChange={(e) => setEditingSubject({ ...editingSubject, category: e.target.value })}
+                          className="w-full px-3.5 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
+                        >
+                          <option value="Umum">Umum / Wajib</option>
+                          <option value="Keagamaan / Pesantren">Keagamaan / Pesantren</option>
+                          <option value="Muatan Lokal">Muatan Lokal</option>
+                          <option value="Ekstrakurikuler">Ekstrakurikuler</option>
+                          <option value="Bimbingan">Bimbingan</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end space-x-3 pt-3 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setEditingSubject(null)}
+                        className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm"
+                      >
+                        Simpan Perubahan
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2093,16 +2440,28 @@ export default function AplikasiGuru() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Mata Pelajaran <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-semibold text-gray-700">
+                          Mata Pelajaran <span className="text-rose-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('subjects')}
+                          className="text-[10px] text-blue-600 hover:underline font-semibold"
+                        >
+                          + Kelola Mapel
+                        </button>
+                      </div>
+                      <select
                         value={attendanceSubject}
                         onChange={(e) => setAttendanceSubject(e.target.value)}
-                        placeholder="Contoh: Matematika"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                      />
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                      >
+                        <option value="">-- Pilih Mata Pelajaran --</option>
+                        {subjects.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -2296,25 +2655,25 @@ export default function AplikasiGuru() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button 
-                  onClick={exportToExcel} 
-                  title="Unduh file spreadsheet Excel lengkap (Rekap Bulanan + Log Harian)"
+                  onClick={exportMonthlyRecapOfficial} 
+                  title="Unduh laporan rekap bulanan resmi dengan Kop Yayasan & Tanda Tangan"
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <Download size={15} /> <span>Unduh Excel (.xls)</span>
+                  <Download size={15} /> <span>Unduh Rekap Bulanan (Resmi)</span>
                 </button>
                 <button 
-                  onClick={exportMonthlyRecapExcel} 
-                  title="Unduh file Excel khusus tabel rekap total bulanan per guru"
+                  onClick={exportMonthlyToCSV} 
+                  title="Unduh file CSV rekap total bulanan per guru dengan Kop Yayasan"
                   className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <BarChart3 size={15} /> <span>Excel Rekap Bulanan</span>
+                  <BarChart3 size={15} /> <span>CSV Rekap Bulanan</span>
                 </button>
                 <button 
                   onClick={exportToCSV} 
-                  title="Unduh file format CSV UTF-8"
+                  title="Unduh file CSV riwayat harian lengkap dengan Kop Yayasan"
                   className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition text-xs font-bold"
                 >
-                  <FileText size={15} /> <span>CSV</span>
+                  <FileText size={15} /> <span>CSV Log Harian</span>
                 </button>
                 <button 
                   onClick={handlePrintRekapPdf} 
@@ -2452,19 +2811,20 @@ export default function AplikasiGuru() {
             <div className="rekap-print-content space-y-6">
               {/* KOP SURAT RESMI UNTUK CETAK PDF */}
               <div className="hidden print:block mb-4">
-                <div className="text-center pb-2">
-                  <h3 className="text-xs font-bold tracking-wider uppercase text-gray-800">
-                    YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
-                  </h3>
-                  <h1 className="text-2xl font-black tracking-tight text-blue-900 my-0.5">
-                    SMP IT ANNUR ABHARI
-                  </h1>
-                  <p className="text-[11px] text-gray-600 font-medium">
-                    
-                  </p>
-                  <p className="text-[10px] text-gray-500">
-                    Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat
-                  </p>
+                <div className="flex items-center justify-between pb-2">
+                  <img src={schoolLogo} alt="Logo SMP IT Annur Abhari" className="w-16 h-16 object-contain shrink-0" />
+                  <div className="text-center flex-1 px-4">
+                    <h3 className="text-xs font-bold tracking-wider uppercase text-gray-800">
+                      YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI
+                    </h3>
+                    <h1 className="text-2xl font-black tracking-tight text-blue-900 my-0.5">
+                      SMP IT ANNUR ABHARI
+                    </h1>
+                    <p className="text-[10px] text-gray-600">
+                      Alamat: Jl. Kerangkeng Barat, Desa Banyumulek, Kediri, Lombok Barat - NTB
+                    </p>
+                  </div>
+                  <div className="w-16 h-16 shrink-0 opacity-0 pointer-events-none"></div>
                 </div>
                 {/* Garis Ganda Kop Surat */}
                 <div className="border-b-2 border-black"></div>
@@ -2514,8 +2874,8 @@ export default function AplikasiGuru() {
                       </span>
                       <button
                         type="button"
-                        onClick={exportMonthlyRecapExcel}
-                        title="Unduh rekap bulanan ke Excel"
+                        onClick={exportMonthlyRecapOfficial}
+                        title="Unduh rekap bulanan resmi (Kop Yayasan & Tanda Tangan)"
                         className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                       >
                         <Download size={16} />
@@ -2781,19 +3141,19 @@ export default function AplikasiGuru() {
                 <div className="grid grid-cols-2 gap-8 text-xs text-black">
                   <div className="text-center">
                     <p className="font-medium">Mengetahui,</p>
-                    <p className="font-bold text-sm">Kepala SMP IT Annur Abhari</p>
-                    <div className="h-20"></div>
-                    <p className="font-bold underline text-sm">___________________________</p>
-
+                    <p className="font-bold text-sm">Kepala Sekolah</p>
+                    <div className="h-16"></div>
+                    <p className="font-bold underline text-sm">Wahyu Kusuma, S.Pd</p>
+                    <p className="text-[11px] text-gray-700">Kepala SMP IT Annur Abhari</p>
                   </div>
                   <div className="text-center">
                     <p className="font-medium">
-                      Dicetak di Sekolah, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      Banyumulek, {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </p>
-                    <p className="font-bold text-sm">Petugas Presensi / Kurikulum</p>
-                    <div className="h-20"></div>
-                    <p className="font-bold underline text-sm">___________________________</p>
-
+                    <p className="font-bold text-sm">Waka Kurikulum</p>
+                    <div className="h-16"></div>
+                    <p className="font-bold underline text-sm">Lalu Hairurrozi, S.Sos</p>
+                    <p className="text-[11px] text-gray-700">Waka Kurikulum SMP IT Annur Abhari</p>
                   </div>
                 </div>
               </div>
@@ -2907,8 +3267,8 @@ export default function AplikasiGuru() {
             <div className="qr-print-content border-2 border-gray-800 rounded-2xl p-6 md:p-8 text-center bg-white print:border-none print:p-4 print:m-0">
               <div className="max-w-md mx-auto">
                 <div className="flex justify-center mb-2">
-                  <div className="w-12 h-12 bg-blue-700 rounded-2xl flex items-center justify-center text-white shadow-sm">
-                    <QrCode size={26} />
+                  <div className="w-16 h-16 p-1 bg-white rounded-2xl flex items-center justify-center shadow-xs">
+                    <img src={schoolLogo} alt="Logo SMP IT Annur Abhari" className="w-full h-full object-contain" />
                   </div>
                 </div>
                 <h3 className="text-xs font-bold tracking-widest uppercase text-blue-900">YAYASAN PONDOK PESANTREN TAHFIDZUL QUR'AN ANNUR ABHARI</h3>
@@ -3025,6 +3385,110 @@ export default function AplikasiGuru() {
                 className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PENGATURAN LOGO SEKOLAH (UNGGAH DARI LAPTOP ATAU KODE) */}
+      {showLogoModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 animate-fadeIn text-left border border-blue-100">
+            {/* Input file tersembunyi untuk memilih dari laptop */}
+            <input 
+              type="file" 
+              ref={logoFileInputRef} 
+              onChange={handleUploadLogoFile} 
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" 
+              className="hidden" 
+            />
+
+            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                  <ImageIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Pengaturan Logo Sekolah</h3>
+                  <p className="text-xs text-gray-500">Unggah file logo dari laptop atau ganti di kode project</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowLogoModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* Preview Logo Saat Ini */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-gray-200">
+                <div className="w-24 h-24 bg-white rounded-2xl shadow-sm border border-gray-200 flex items-center justify-center p-2 shrink-0">
+                  <img src={schoolLogo} alt="Preview Logo Sekolah" className="w-full h-full object-contain" />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                    Logo Aktif Saat Ini
+                  </span>
+                  <p className="text-xs text-gray-600 mt-1.5">
+                    Logo ini langsung diterapkan di: Halaman Login, Sidebar Admin, Portal Presensi HP Guru, Lembar QR Code, dan Kop Surat Cetak PDF.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2 justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => logoFileInputRef.current?.click()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Upload size={14} />
+                      <span>Pilih File dari Laptop</span>
+                    </button>
+                    {schoolLogo !== DEFAULT_SCHOOL_LOGO && (
+                      <button
+                        type="button"
+                        onClick={handleResetLogo}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Reset ke Bawaan</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Panduan Kode & Lokasi File untuk User */}
+              <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 text-xs text-amber-900 space-y-2">
+                <p className="font-bold flex items-center gap-1.5 text-amber-950">
+                  <Sparkles size={15} className="text-amber-600" />
+                  <span>Petunjuk Kode Jika Ingin Menaruh File di Project:</span>
+                </p>
+                <ol className="list-decimal list-inside space-y-1.5 text-[11px] leading-relaxed text-amber-900">
+                  <li>
+                    <b>Letak Folder File:</b> Masukkan file logo Anda ke dalam folder <code className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded font-mono font-bold">public/</code> (contoh: <code className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded font-mono">public/logo.png</code> atau <code className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded font-mono">public/logo.svg</code>).
+                  </li>
+                  <li>
+                    <b>Letak Baris Kode:</b> Buka file <code className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded font-mono font-bold">src/App.tsx</code> sekitar baris 24:
+                    <div className="mt-1 bg-slate-900 text-emerald-300 p-2.5 rounded-xl font-mono text-[11px] select-all overflow-x-auto">
+                      export const DEFAULT_SCHOOL_LOGO = '/logo.svg';
+                    </div>
+                  </li>
+                  <li>
+                    Ganti <code className="bg-amber-100/90 text-amber-950 px-1 py-0.5 rounded font-mono">'/logo.svg'</code> dengan nama file Anda, misal: <code className="bg-amber-100/90 text-amber-950 px-1 py-0.5 rounded font-mono font-bold">'/logo.png'</code>.
+                  </li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowLogoModal(false)}
+                className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition"
+              >
+                Selesai / Tutup
               </button>
             </div>
           </div>
